@@ -8,9 +8,9 @@
 
 ```text
 Title: FSHarvest
-Version: 1.0.0
-Release date: 2026-09-04
-License: MIT
+Version: 1.0.0rc1
+Status: release candidate; no stable release date
+Code license: MIT; bundled atlas resources retain their upstream licenses
 ```
 
 ## Atlas 引用

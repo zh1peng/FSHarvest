@@ -18,6 +18,7 @@ import math
 import os
 import re
 import shutil
+import socket
 import struct
 import subprocess
 import sys
@@ -33,8 +34,9 @@ from typing import Any, Iterable, Iterator, Optional
 from urllib.parse import quote
 
 
-PIPELINE_VERSION = "1.0.0"
-COMPATIBLE_CACHE_PIPELINE_VERSIONS = ("1.2.0", "1.3.0", "1.3.1")
+TOOL_VERSION = "1.0.0rc1"
+CACHE_SCHEMA_VERSION = 1
+OUTPUT_SCHEMA_VERSION = 1
 TOOL_NAME = "FSHarvest"
 HEMISPHERES = ("lh", "rh")
 CORTICAL_COLUMNS = (
@@ -72,6 +74,18 @@ BLACKLIST = {
     "tmp",
 }
 MIN_ASEG_ROWS = 20
+ASEG_COL_HEADERS = (
+    "Index",
+    "SegId",
+    "NVoxels",
+    "Volume_mm3",
+    "StructName",
+    "normMean",
+    "normStdDev",
+    "normMin",
+    "normMax",
+    "normRange",
+)
 REQUIRED_ASEG_STRUCTURE_GROUPS = (
     ("Brain-Stem", ("Brain-Stem",)),
     ("Left-Thalamus", ("Left-Thalamus", "Left-Thalamus-Proper")),
@@ -305,6 +319,109 @@ def json_fingerprint(value: Any) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
+def version_order(version: str) -> tuple[int, int, int, int, int]:
+    """Return an ordering key for the supported SemVer final/RC spellings."""
+    match = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)(?:rc(\d+))?", version)
+    if match is None:
+        raise ValueError(f"Unsupported tool version in cache metadata: {version}")
+    major, minor, patch, rc = match.groups()
+    return int(major), int(minor), int(patch), 0 if rc is None else -1, int(rc or 0)
+
+
+def cache_tool_version_is_compatible(producer_version: str) -> bool:
+    """Allow validated older/equal producers, but never trust a downgrade."""
+    try:
+        return version_order(producer_version) <= version_order(TOOL_VERSION)
+    except ValueError:
+        return False
+
+
+def process_is_running(pid: int) -> bool:
+    if pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except OSError:
+        return False
+    return True
+
+
+def lock_is_stale(lock_path: Path, metadata: dict[str, Any]) -> bool:
+    if metadata.get("hostname") == socket.gethostname():
+        try:
+            return not process_is_running(int(metadata.get("pid", 0)))
+        except (TypeError, ValueError):
+            return True
+    try:
+        age_seconds = time.time() - lock_path.stat().st_mtime
+    except OSError:
+        return True
+    return not metadata and age_seconds > 24 * 60 * 60
+
+
+class RunResources:
+    """Own the output lock and disposable FreeSurfer working links."""
+
+    def __init__(self) -> None:
+        self.output_dir: Optional[Path] = None
+        self.lock_path: Optional[Path] = None
+        self.lock_id = uuid.uuid4().hex
+
+    def acquire(self, output_dir: Path, force_unlock: bool) -> None:
+        output_dir.mkdir(parents=True, exist_ok=True)
+        lock_path = output_dir / ".fsharvest.lock"
+        while True:
+            try:
+                fd = os.open(lock_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            except FileExistsError:
+                try:
+                    metadata = json.loads(lock_path.read_text(encoding="utf-8"))
+                except (OSError, json.JSONDecodeError):
+                    metadata = {}
+                if force_unlock and lock_is_stale(lock_path, metadata):
+                    lock_path.unlink(missing_ok=True)
+                    continue
+                owner = json.dumps(metadata, ensure_ascii=False) if metadata else "unreadable lock"
+                raise RuntimeError(
+                    f"Output directory is locked: {lock_path} ({owner}). "
+                    "Use --force-unlock only after verifying that the recorded process is no longer running."
+                )
+            else:
+                self.output_dir = output_dir
+                self.lock_path = lock_path
+                metadata = {
+                    "lock_id": self.lock_id,
+                    "tool_version": TOOL_VERSION,
+                    "hostname": socket.gethostname(),
+                    "pid": os.getpid(),
+                    "started_at_utc": datetime.now(timezone.utc).isoformat(),
+                    "command": sys.argv,
+                }
+                with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                    json.dump(metadata, handle, indent=2, ensure_ascii=False)
+                    handle.write("\n")
+                return
+
+    def cleanup(self) -> None:
+        try:
+            if self.output_dir is not None:
+                work_dir = self.output_dir / "work"
+                if work_dir.is_dir():
+                    shutil.rmtree(work_dir)
+        finally:
+            if self.lock_path is not None and self.lock_path.is_file():
+                try:
+                    metadata = json.loads(self.lock_path.read_text(encoding="utf-8"))
+                except (OSError, json.JSONDecodeError):
+                    metadata = {}
+                if metadata.get("lock_id") == self.lock_id:
+                    self.lock_path.unlink(missing_ok=True)
+
+
 def region_set_sha256(regions: Iterable[str]) -> str:
     payload = "".join(f"{region}\n" for region in sorted(regions))
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
@@ -342,15 +459,21 @@ def output_artifact_integrity(subject_out: Path) -> dict[str, dict[str, Any]]:
 
 
 def file_state(path: Path) -> dict[str, Any]:
-    """Return a cheap cache-invalidation signature without hashing large surfaces."""
+    """Return a cache signature, hashing small scientific inputs by content."""
     if not path.is_file():
         return {"path": str(path), "missing": True}
     stat = path.stat()
-    return {
+    result = {
         "path": str(path),
         "size": stat.st_size,
         "mtime_ns": stat.st_mtime_ns,
+        "ctime_ns": stat.st_ctime_ns,
+        "device": stat.st_dev,
+        "inode": stat.st_ino,
     }
+    if path.suffix in {".stats", ".annot", ".label", ".txt", ".done"}:
+        result["sha256"] = sha256(path)
+    return result
 
 
 def subject_external_artifact_candidates(
@@ -377,25 +500,29 @@ def reusable_subject_artifacts(
     hemi: str,
     expected_region_sha256: Optional[str] = None,
 ) -> tuple[Optional[Path], Optional[Path]]:
-    first_annotation: Optional[Path] = None
-    for annotation, stats in subject_external_artifact_candidates(subject_dir, spec, hemi):
+    try:
+        surface_vertex_count = read_surface_vertex_count(subject_dir / "surf" / f"{hemi}.white")
+    except (OSError, RuntimeError):
+        return None, None
+    seen: set[Path] = set()
+    for annotation, _stats in subject_external_artifact_candidates(subject_dir, spec, hemi):
+        if annotation in seen:
+            continue
+        seen.add(annotation)
         if not annotation.is_file():
             continue
-        if first_annotation is None:
-            first_annotation = annotation
-        if not stats.is_file():
-            continue
-        annotation_header = header_value(stats, "AnnotationFile")
-        if not annotation_header or Path(annotation_header).name != annotation.name:
-            continue
-        rows = [
-            row
-            for row in parse_cortical_stats(stats, atlas, hemi)
-            if row["region"] not in spec.excluded_regions
-        ]
-        if not validate_cortical_rows(rows, atlas, hemi, expected_region_sha256):
-            return annotation, stats
-    return first_annotation, None
+        if not validate_annotation_file(
+            annotation,
+            spec,
+            atlas,
+            hemi,
+            expected_region_sha256,
+            surface_vertex_count,
+        ):
+            # Subject-level stats are deliberately never reused: without an
+            # FSHarvest sidecar they cannot prove subject/command provenance.
+            return annotation, None
+    return None, None
 
 
 def output_annotation_path(subject_out: Path, spec: AtlasSpec, hemi: str) -> Path:
@@ -418,7 +545,7 @@ def external_artifact_integrity(
     return {name: file_integrity(path) for name, path in paths.items() if path.is_file()}
 
 
-def annotation_region_names(path: Path) -> list[str]:
+def annotation_contents(path: Path) -> tuple[int, list[str]]:
     """Read and structurally validate a FreeSurfer annotation without optional dependencies."""
     data = path.read_bytes()
     offset = 0
@@ -504,7 +631,28 @@ def annotation_region_names(path: Path) -> list[str]:
         raise RuntimeError("annotation contains labels missing from its color table")
     if not names or any(not name for name in names):
         raise RuntimeError("annotation contains an empty color table")
-    return names
+    return vertex_count, names
+
+
+def annotation_region_names(path: Path) -> list[str]:
+    return annotation_contents(path)[1]
+
+
+def read_surface_vertex_count(path: Path) -> int:
+    """Read the vertex count from a triangular FreeSurfer surface file."""
+    with path.open("rb") as handle:
+        magic = int.from_bytes(handle.read(3), "big")
+        if magic != 16777214:
+            raise RuntimeError(f"unsupported FreeSurfer surface format: {path}")
+        handle.readline()
+        handle.readline()
+        raw = handle.read(4)
+    if len(raw) != 4:
+        raise RuntimeError(f"truncated FreeSurfer surface: {path}")
+    count = struct.unpack(">i", raw)[0]
+    if count <= 0:
+        raise RuntimeError(f"invalid surface vertex count: {path}")
+    return count
 
 
 def validate_annotation_file(
@@ -513,19 +661,25 @@ def validate_annotation_file(
     atlas: str,
     hemi: str,
     expected_region_sha256: Optional[str],
+    expected_vertex_count: Optional[int] = None,
 ) -> list[str]:
     if not path.is_file():
         return [f"{atlas}/{hemi}: missing annotation: {path}"]
     if path.stat().st_size == 0:
         return [f"{atlas}/{hemi}: annotation is empty: {path}"]
-    if expected_region_sha256 is None:
+    if expected_region_sha256 is None and expected_vertex_count is None:
         return []
     try:
-        names = annotation_region_names(path)
+        vertex_count, names = annotation_contents(path)
     except (OSError, RuntimeError) as exc:
         return [f"{atlas}/{hemi}: invalid annotation {path}: {exc}"]
+    if expected_vertex_count is not None and vertex_count != expected_vertex_count:
+        return [
+            f"{atlas}/{hemi}: annotation has {vertex_count} vertices; "
+            f"surface has {expected_vertex_count}"
+        ]
     regions = [name for name in names if name not in spec.excluded_regions]
-    if region_set_sha256(regions) != expected_region_sha256:
+    if expected_region_sha256 and region_set_sha256(regions) != expected_region_sha256:
         return [f"{atlas}/{hemi}: annotation regions do not match the pinned atlas schema"]
     return []
 
@@ -685,8 +839,8 @@ def subject_input_fingerprint(subject_dir: Path, atlas_keys: tuple[str, ...]) ->
                         subject_dir / "surf" / f"{hemi}.thickness",
                     }
                 )
-                for annotation, stats in subject_external_artifact_candidates(subject_dir, spec, hemi):
-                    paths.update((annotation, stats))
+                for annotation, _stats in subject_external_artifact_candidates(subject_dir, spec, hemi):
+                    paths.add(annotation)
     return json_fingerprint([file_state(path) for path in sorted(paths)])
 
 
@@ -792,6 +946,19 @@ def parse_aseg_stats(path: Path) -> list[dict[str, Any]]:
     return rows
 
 
+def parse_aseg_header(path: Path) -> dict[str, Any]:
+    header: dict[str, Any] = {}
+    with path.open("r", encoding="utf-8", errors="replace") as handle:
+        for line in handle:
+            if line.startswith("# NRows "):
+                header["nrows"] = parse_number(line[len("# NRows ") :])
+            elif line.startswith("# NTableCols "):
+                header["ntablecols"] = parse_number(line[len("# NTableCols ") :])
+            elif line.startswith("# ColHeaders "):
+                header["colheaders"] = tuple(line[len("# ColHeaders ") :].split())
+    return header
+
+
 def is_finite_number(value: Any) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
 
@@ -832,9 +999,28 @@ def validate_cortical_rows(
 
 
 def validate_aseg_rows(
-    aseg_rows: list[dict[str, Any]], global_rows: list[dict[str, Any]]
+    aseg_rows: list[dict[str, Any]],
+    global_rows: list[dict[str, Any]],
+    header: Optional[dict[str, Any]] = None,
 ) -> list[str]:
     errors = []
+    if header is not None:
+        if header.get("nrows") != len(aseg_rows):
+            errors.append(
+                "aseg.stats NRows does not match structure rows: "
+                f"declared {header.get('nrows', 'missing')}, observed {len(aseg_rows)}"
+            )
+        if header.get("ntablecols") != len(ASEG_COL_HEADERS):
+            errors.append(
+                "aseg.stats NTableCols is missing or unsupported: "
+                f"expected {len(ASEG_COL_HEADERS)}, observed {header.get('ntablecols', 'missing')}"
+            )
+        if header.get("colheaders") != ASEG_COL_HEADERS:
+            observed = " ".join(str(value) for value in header.get("colheaders", ())) or "missing"
+            errors.append(
+                "aseg.stats ColHeaders are missing or unsupported: "
+                f"expected {' '.join(ASEG_COL_HEADERS)}, observed {observed}"
+            )
     if not aseg_rows:
         errors.append("aseg.stats contains no structure rows")
     else:
@@ -1143,12 +1329,8 @@ def extract_subject(
         "template_fingerprint": template_fingerprint,
     }
     fingerprint = json_fingerprint(
-        {"pipeline_version": PIPELINE_VERSION, **fingerprint_payload}
+        {"cache_schema_version": CACHE_SCHEMA_VERSION, **fingerprint_payload}
     )
-    compatible_fingerprints = {
-        json_fingerprint({"pipeline_version": version, **fingerprint_payload}): version
-        for version in COMPATIBLE_CACHE_PIPELINE_VERSIONS
-    }
 
     cache_validation_errors: list[str] = []
     if status_path.is_file() and not overwrite:
@@ -1158,30 +1340,30 @@ def extract_subject(
             previous = {}
         if (
             previous.get("status") == "OK"
-            and previous.get("fingerprint") in {fingerprint, *compatible_fingerprints}
+            and previous.get("fingerprint") == fingerprint
+            and previous.get("cache_schema_version") == CACHE_SCHEMA_VERSION
+            and cache_tool_version_is_compatible(
+                str(previous.get("cache_produced_by_tool_version", ""))
+            )
         ):
             cache_validation_errors = validate_cached_subject_outputs(
                 subject_out, previous, atlas_keys, atlas_region_hashes
             )
             if not cache_validation_errors:
-                previous_fingerprint = str(previous["fingerprint"])
                 for key in atlas_keys:
                     spec = ATLAS_SPECS[key]
                     if spec.kind == "external":
                         for hemi in HEMISPHERES:
                             output_annotation_path(subject_out, spec, hemi)
-                if previous_fingerprint != fingerprint:
-                    previous["cache_migrated_from"] = compatible_fingerprints[previous_fingerprint]
-                    previous["pipeline_version"] = PIPELINE_VERSION
-                    previous["fingerprint"] = fingerprint
                 for key in (
-                    "qc_status", "qc_errors", "export_status", "exported_files",
+                    "qc_status", "qc_errors", "qc_artifacts", "export_status", "exported_files",
                     "existing_export_files", "exported_paths", "existing_export_paths",
                     "export_errors",
                 ):
                     previous.pop(key, None)
                 previous["run_id"] = run_id
                 previous["cache_hit"] = 1
+                previous["cache_last_validated_by_tool_version"] = TOOL_VERSION
                 previous["runtime_seconds"] = round(time.time() - start, 3)
                 previous["output_artifacts"] = output_artifact_integrity(subject_out)
                 atomic_write_text(
@@ -1191,7 +1373,8 @@ def extract_subject(
 
     subject_out.mkdir(parents=True, exist_ok=True)
     work_subjects = output_dir / "work" / "subjects"
-    ensure_link(work_subjects / folder_id, subject_dir)
+    if any(ATLAS_SPECS[key].kind == "external" for key in atlas_keys):
+        ensure_link(work_subjects / folder_id, subject_dir)
     env = os.environ.copy()
     env["SUBJECTS_DIR"] = str(work_subjects)
     env["OMP_NUM_THREADS"] = "1"
@@ -1201,7 +1384,7 @@ def extract_subject(
         errors.append(f"Missing recon-all completion marker: {subject_dir / 'scripts' / 'recon-all.done'}")
     cortical_rows: list[dict[str, Any]] = []
     with (subject_out / "extract.log").open("a", encoding="utf-8") as log:
-        log.write(f"\nSTART pipeline={PIPELINE_VERSION} subject={folder_id}\n")
+        log.write(f"\nSTART tool={TOOL_VERSION} cache_schema={CACHE_SCHEMA_VERSION} subject={folder_id}\n")
         for message in cache_validation_errors:
             log.write(f"CACHE_INVALID {message}\n")
         for key in atlas_keys:
@@ -1242,7 +1425,7 @@ def extract_subject(
                         )
                         artifact_fingerprint = json_fingerprint(
                             {
-                                "pipeline_version": PIPELINE_VERSION,
+                                "cache_schema_version": CACHE_SCHEMA_VERSION,
                                 "atlas": key,
                                 "hemisphere": hemi,
                                 "atlas_sha256": atlas_checksums.get(source_annot.name),
@@ -1264,6 +1447,11 @@ def extract_subject(
                                 artifact_previous = {}
                         artifact_current = (
                             artifact_previous.get("fingerprint") == artifact_fingerprint
+                            and artifact_previous.get("cache_schema_version")
+                            == CACHE_SCHEMA_VERSION
+                            and cache_tool_version_is_compatible(
+                                str(artifact_previous.get("tool_version", ""))
+                            )
                             and target_annot.is_file()
                             and stats_path.is_file()
                             and artifact_previous.get("output_artifacts")
@@ -1324,6 +1512,10 @@ def extract_subject(
                     ]
                     hemi_errors = []
                     if spec.kind == "external":
+                        surface_path = subject_dir / "surf" / f"{hemi}.white"
+                        surface_vertex_count = (
+                            read_surface_vertex_count(surface_path) if surface_path.is_file() else None
+                        )
                         hemi_errors.extend(
                             validate_annotation_file(
                                 target_annot,
@@ -1331,6 +1523,7 @@ def extract_subject(
                                 key,
                                 hemi,
                                 atlas_region_hashes.get(f"{key}:{hemi}"),
+                                surface_vertex_count,
                             )
                         )
                     hemi_errors.extend(
@@ -1351,6 +1544,8 @@ def extract_subject(
                             json.dumps(
                                 {
                                     "fingerprint": stored_fingerprint,
+                                    "tool_version": TOOL_VERSION,
+                                    "cache_schema_version": CACHE_SCHEMA_VERSION,
                                     "atlas": key,
                                     "hemisphere": hemi,
                                     "source": source_kind,
@@ -1375,7 +1570,7 @@ def extract_subject(
     if aseg_path.is_file():
         aseg_rows = parse_aseg_stats(aseg_path)
         global_rows = parse_measure_lines(aseg_path)
-        errors.extend(validate_aseg_rows(aseg_rows, global_rows))
+        errors.extend(validate_aseg_rows(aseg_rows, global_rows, parse_aseg_header(aseg_path)))
     else:
         errors.append(f"Missing standard FreeSurfer stats: {aseg_path}")
 
@@ -1403,7 +1598,11 @@ def extract_subject(
         "aseg_rows": len(aseg_rows),
         "runtime_seconds": round(time.time() - start, 3),
         "errors": " | ".join(errors),
-        "pipeline_version": PIPELINE_VERSION,
+        "tool_version": TOOL_VERSION,
+        "cache_schema_version": CACHE_SCHEMA_VERSION,
+        "cache_produced_by_tool_version": TOOL_VERSION,
+        "cache_last_validated_by_tool_version": TOOL_VERSION,
+        "output_schema_version": OUTPUT_SCHEMA_VERSION,
         "fingerprint": fingerprint,
         "input_fingerprint": input_fingerprint,
         "runtime_freesurfer_version": runtime_version,
@@ -1469,23 +1668,91 @@ def iter_checked_tsv(
                 yield row
 
 
+def qc_annotation_path(subject_dir: Path, subject_out: Path, atlas: str, hemi: str) -> Path:
+    spec = ATLAS_SPECS[atlas]
+    if spec.kind == "builtin":
+        return subject_dir / "label" / f"{hemi}.{spec.stats_stem}.annot"
+    return output_annotation_path(subject_out, spec, hemi)
+
+
+def qc_input_integrity(
+    subject_dir: Path, subject_out: Path, atlas: str, surface: str
+) -> dict[str, dict[str, Any]]:
+    paths: dict[str, Path] = {}
+    for hemi in HEMISPHERES:
+        paths[f"{hemi}_surface"] = subject_dir / "surf" / f"{hemi}.{surface}"
+        paths[f"{hemi}_annotation"] = qc_annotation_path(subject_dir, subject_out, atlas, hemi)
+    return {name: file_integrity(path) for name, path in paths.items() if path.is_file()}
+
+
+def write_qc_artifact_metadata(
+    subject_dir: Path,
+    subject_out: Path,
+    image_path: Path,
+    atlas: str,
+    surface: str,
+    dpi: int,
+    run_id: str,
+) -> dict[str, Any]:
+    artifact = {
+        "tool_version": TOOL_VERSION,
+        "run_id": run_id,
+        "atlas": atlas,
+        "surface": surface,
+        "dpi": dpi,
+        "image": image_path.name,
+        "image_integrity": file_integrity(image_path),
+        "input_integrity": qc_input_integrity(subject_dir, subject_out, atlas, surface),
+    }
+    sidecar = Path(str(image_path) + ".json")
+    atomic_write_text(sidecar, json.dumps(artifact, indent=2, ensure_ascii=False) + "\n")
+    return artifact
+
+
+def valid_qc_artifacts(
+    subject: Path, base: Path, summary: dict[str, Any], atlas_keys: tuple[str, ...]
+) -> list[tuple[Path, str, str]]:
+    valid: list[tuple[Path, str, str]] = []
+    for artifact in summary.get("qc_artifacts", []):
+        if not isinstance(artifact, dict) or artifact.get("run_id") != summary.get("run_id"):
+            continue
+        atlas = str(artifact.get("atlas", ""))
+        surface = str(artifact.get("surface", ""))
+        if atlas not in atlas_keys or surface not in {"inflated", "pial", "white"}:
+            continue
+        image_name = str(artifact.get("image", ""))
+        if Path(image_name).name != image_name:
+            continue
+        image_path = base / "qc" / image_name
+        sidecar = Path(str(image_path) + ".json")
+        try:
+            sidecar_artifact = json.loads(sidecar.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if sidecar_artifact != artifact:
+            continue
+        if not image_path.is_file() or artifact.get("image_integrity") != file_integrity(image_path):
+            continue
+        current_inputs = qc_input_integrity(subject, base, atlas, surface)
+        if len(current_inputs) != 4 or artifact.get("input_integrity") != current_inputs:
+            continue
+        valid.append((image_path, atlas, surface))
+    return valid
+
+
 def write_qc_report(
     output_dir: Path,
     records: list[tuple[Path, Path, dict[str, Any]]],
     atlas_keys: tuple[str, ...],
 ) -> None:
     atlas_images: dict[str, dict[str, list[tuple[Path, str]]]] = {}
-    for subject, base, _summary in records:
-        qc_dir = base / "qc"
-        for image_path in sorted(qc_dir.glob("*_4view.png")):
-            atlas, separator, surface = image_path.name[: -len("_4view.png")].rpartition("_")
-            if not separator:
-                continue
+    for subject, base, summary in records:
+        for image_path, atlas, surface in valid_qc_artifacts(
+            subject, base, summary, atlas_keys
+        ):
             atlas_images.setdefault(atlas, {}).setdefault(subject.name, []).append((image_path, surface))
 
-    atlas_names = set(atlas_images)
-    atlas_order = [atlas for atlas in atlas_keys if atlas in atlas_names]
-    atlas_order.extend(sorted(atlas_names.difference(atlas_order)))
+    atlas_order = [atlas for atlas in atlas_keys if atlas in atlas_images]
     tabs = []
     panels = []
     for index, atlas in enumerate(atlas_order):
@@ -1747,8 +2014,9 @@ def aggregate(
         "recon_all_done", "status", "eTIV_mm3", "lh_surface_holes", "rh_surface_holes",
         "lh_euler", "rh_euler", "euler_sum", "cortical_rows", "aseg_rows",
         "runtime_seconds", "errors", "qc_status", "qc_errors", "export_status",
-        "exported_files", "existing_export_files", "export_errors", "pipeline_version",
-        "runtime_freesurfer_version", "input_fingerprint", "run_id", "cache_hit",
+        "exported_files", "existing_export_files", "export_errors", "tool_version",
+        "cache_schema_version", "output_schema_version", "runtime_freesurfer_version",
+        "input_fingerprint", "run_id", "cache_hit",
     ]
     write_tsv(output_dir / "subjects.tsv", summaries, summary_fields)
 
@@ -1857,7 +2125,7 @@ def parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
         prog="fsharvest",
         description="One-command extraction of cortical, aseg, global, Euler, and provenance data from FreeSurfer outputs."
     )
-    parser.add_argument("--version", action="version", version=f"%(prog)s {PIPELINE_VERSION}")
+    parser.add_argument("--version", action="version", version=f"%(prog)s {TOOL_VERSION}")
     parser.add_argument("subjects_dir", type=Path, help="Directory whose child directories are FreeSurfer subjects.")
     parser.add_argument(
         "output_dir",
@@ -1887,10 +2155,15 @@ def parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
     parser.add_argument("--qc-atlases", nargs="+", choices=tuple(ATLAS_SPECS), help="Subset of selected atlases to render.")
     parser.add_argument("--qc-surface", choices=("inflated", "pial", "white"), default="inflated")
     parser.add_argument("--qc-dpi", type=int, default=150)
+    parser.add_argument(
+        "--force-unlock",
+        action="store_true",
+        help="Remove a stale same-host output lock after confirming its process has exited.",
+    )
     return parser.parse_args(argv)
 
 
-def main(argv: Optional[list[str]] = None) -> int:
+def _main(argv: Optional[list[str]], resources: RunResources) -> int:
     args = parse_args(argv)
     if args.jobs < 1:
         raise ValueError("--jobs must be at least 1")
@@ -1946,6 +2219,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         raise RuntimeError("Duplicate subject folder IDs are not supported: " + ", ".join(duplicate_names))
 
     output_root.mkdir(parents=True, exist_ok=True)
+    resources.acquire(output_root, args.force_unlock)
     work_subjects = output_root / "work" / "subjects"
     for source_subject in {ATLAS_SPECS[key].source_subject for key in atlas_keys} - {None}:
         source_path = fs_home / "subjects" / str(source_subject)
@@ -1993,7 +2267,9 @@ def main(argv: Optional[list[str]] = None) -> int:
                     **subject_metadata(subject),
                     "status": "FAILED",
                     "errors": f"Fatal extraction error: {exc}",
-                    "pipeline_version": PIPELINE_VERSION,
+                    "tool_version": TOOL_VERSION,
+                    "cache_schema_version": CACHE_SCHEMA_VERSION,
+                    "output_schema_version": OUTPUT_SCHEMA_VERSION,
                     "runtime_freesurfer_version": runtime_version,
                     "run_id": run_id,
                     "cache_hit": 0,
@@ -2063,22 +2339,47 @@ def main(argv: Optional[list[str]] = None) -> int:
                 outputs = render_subject_function(
                     subject, subject_out, qc_atlas_keys, args.qc_surface, args.qc_dpi
                 )
+                qc_artifacts = []
+                for image_path in outputs:
+                    suffix = f"_{args.qc_surface}_4view.png"
+                    if not image_path.name.endswith(suffix):
+                        raise RuntimeError(f"Unexpected QC output name: {image_path}")
+                    atlas = image_path.name[: -len(suffix)]
+                    qc_artifacts.append(
+                        write_qc_artifact_metadata(
+                            subject,
+                            subject_out,
+                            image_path,
+                            atlas,
+                            args.qc_surface,
+                            args.qc_dpi,
+                            run_id,
+                        )
+                    )
                 qc_status, qc_errors = "OK", ""
                 print(f"[QC {count}/{len(subjects)}] {subject.name}: {len(outputs)} PNGs", flush=True)
             except Exception as exc:
-                qc_status, qc_errors = "FAILED", str(exc)
+                qc_status, qc_errors, qc_artifacts = "FAILED", str(exc), []
                 failed_subjects.add(subject.name)
                 print(f"[QC {count}/{len(subjects)}] {subject.name}: FAILED: {exc}", file=sys.stderr, flush=True)
             try:
                 status = json.loads(status_path.read_text(encoding="utf-8"))
             except (OSError, json.JSONDecodeError):
                 continue
-            status.update({"qc_status": qc_status, "qc_errors": qc_errors})
+            status.update(
+                {
+                    "qc_status": qc_status,
+                    "qc_errors": qc_errors,
+                    "qc_artifacts": qc_artifacts,
+                }
+            )
             atomic_write_text(status_path, json.dumps(status, indent=2, ensure_ascii=False) + "\n")
 
     run_metadata = {
         "tool": TOOL_NAME,
-        "pipeline_version": PIPELINE_VERSION,
+        "tool_version": TOOL_VERSION,
+        "cache_schema_version": CACHE_SCHEMA_VERSION,
+        "output_schema_version": OUTPUT_SCHEMA_VERSION,
         "run_id": run_id,
         "started_at_utc": started_at,
         "runtime_freesurfer_version": runtime_version,
@@ -2108,6 +2409,14 @@ def main(argv: Optional[list[str]] = None) -> int:
     failures = len(failed_subjects)
     print(f"Finished: {len(subjects) - failures} OK, {failures} non-OK. Output: {output_root}", flush=True)
     return 0 if failures == 0 else 2
+
+
+def main(argv: Optional[list[str]] = None) -> int:
+    resources = RunResources()
+    try:
+        return _main(argv, resources)
+    finally:
+        resources.cleanup()
 
 
 if __name__ == "__main__":

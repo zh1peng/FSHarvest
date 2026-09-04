@@ -55,5 +55,5 @@ fsharvest /data/study/freesurfer \
 - eTIV 等全局测量：`global_measures_long.tsv`。
 
 ::: tip 连接键
-区域级表格应按 `atlas`、`hemisphere` 和 `label` 连接，不要使用行号或假设固定排序。
+区域级表格应按 `atlas`、`hemisphere` 和 `region` 连接，不要使用行号或假设固定排序。
 :::

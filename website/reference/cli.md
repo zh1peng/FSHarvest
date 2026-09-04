@@ -15,10 +15,11 @@ fsharvest SUBJECTS_DIR OUTPUT_DIR [options]
 
 | 参数 | 默认值 | 说明 |
 | --- | --- | --- |
-| `--jobs N` | CPU 数限制在 1–8 | 并行处理的受试者数 |
+| `--jobs N` | `min(8, CPU 数)` | 并行处理的受试者数；用户可显式指定更大的正整数 |
 | `--limit N` | 无 | 仅处理排序后的前 N 位受试者 |
 | `--recursive` | 关闭 | 递归发现受试者目录 |
 | `--overwrite` | 关闭 | 忽略缓存与可复用外部产物，重新投影和计算 |
+| `--force-unlock` | 关闭 | 仅在确认同机记录进程已结束后移除 stale output lock |
 | `--freesurfer-home PATH` | `$FREESURFER_HOME` | 指定 FreeSurfer 安装目录 |
 | `--atlas-dir PATH` | bundled `atlases/` | 使用指定 Atlas 资源目录 |
 
@@ -48,4 +49,4 @@ fsharvest --version
 fsharvest --help
 ```
 
-当前软件版本为 `1.0.0`。
+当前软件版本为 `1.0.0rc1`（release candidate）。

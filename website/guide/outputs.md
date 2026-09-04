@@ -24,6 +24,7 @@ OUTPUT/
     ├── aseg.tsv
     ├── global.tsv
     ├── qc/ATLAS_inflated_4view.png
+    ├── qc/ATLAS_inflated_4view.png.json
     ├── extract.log
     └── status.json
 ```
@@ -42,7 +43,7 @@ OUTPUT/
 
 ## Long 与 wide 的选择
 
-分析或检查区域级数据时优先使用 `cortical_long.tsv`，并以 `atlas + hemisphere + label`
+分析或检查区域级数据时优先使用 `cortical_long.tsv`，并以 `atlas + hemisphere + region`
 作为连接键。不要假设不同 Atlas 的行顺序一致。
 
 每个 Atlas 也有独立的宽表，例如：
@@ -64,4 +65,8 @@ dk68__L_bankssts_thickavg
 
 ::: info 大型宽表
 宽表按流式方式聚合，不会把整个队列矩阵同时保存在内存中；但多 Atlas 队列的最终 TSV 仍可能非常宽，需要预留磁盘空间。
+:::
+
+::: warning 共享前检查
+表格、状态、运行元数据、日志和 QC HTML 可能包含受试者标识及本机绝对路径。请把输出目录按受限数据处理，并在共享或公开前完成审查与去标识化。
 :::

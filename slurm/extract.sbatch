@@ -12,6 +12,14 @@ set -euo pipefail
 : "${FS_OUTPUT_DIR:?FS_OUTPUT_DIR is required}"
 : "${FREESURFER_HOME:?FREESURFER_HOME is required}"
 
+printf 'Host: %s\n' "$(hostname)"
+printf 'FreeSurfer: %s\n' "${FREESURFER_HOME}"
+printf 'Command:'
+printf ' %q' bash "${FS_EXTRACT_SCRIPT}" "${FS_INPUT_DIR}" "${FS_OUTPUT_DIR}" \
+  --jobs "${SLURM_CPUS_PER_TASK:-1}" --freesurfer-home "${FREESURFER_HOME}" "$@"
+printf '\n'
+
 bash "${FS_EXTRACT_SCRIPT}" "${FS_INPUT_DIR}" "${FS_OUTPUT_DIR}" \
   --jobs "${SLURM_CPUS_PER_TASK:-1}" \
-  --freesurfer-home "${FREESURFER_HOME}"
+  --freesurfer-home "${FREESURFER_HOME}" \
+  "$@"

@@ -4,9 +4,9 @@ All notable changes to FSHarvest are recorded here. The project follows semantic
 
 ## Unreleased
 
-## 1.0.0 - 2026-09-04
+## 1.0.0rc1
 
-- Initial public release.
+- Release candidate; not a stable public release.
 - Add Schaefer 100–1000, Glasser360, Economo, and Vos de Wael 300 support using pinned atlas assets.
 - Add resumable private annotation/statistics caches and opt-in conflict-safe export to FreeSurfer subjects.
 - Add streamed cohort aggregation, provenance metadata, and four-view QC rendering/reporting.

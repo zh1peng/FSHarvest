@@ -6,5 +6,4 @@ Please report suspected vulnerabilities privately to the project maintainers bef
 
 ## Scope
 
-FSHarvest treats input FreeSurfer subject directories as read-only unless `--export-to-freesurfer` is explicitly supplied. Output directories and atlas bundles should be writable only by trusted users. FSHarvest does not support multiple independent processes writing to the same output directory at the same time.
-
+FSHarvest treats input FreeSurfer subject directories as read-only unless `--export-to-freesurfer` is explicitly supplied. Output directories and atlas bundles should be writable only by trusted users. An atomic `.fsharvest.lock` prevents multiple independent processes from writing to the same output directory; `--force-unlock` is limited to a stale same-host process record.

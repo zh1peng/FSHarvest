@@ -27,7 +27,7 @@ Input FreeSurfer folders are read-only by default. Subject-specific external ann
 
 Requirements: Linux, Python 3.9+, a licensed FreeSurfer installation, and `curl` only if re-downloading atlases. Core extraction has no Python package dependencies. QC PNG rendering additionally needs NumPy, Nibabel, Matplotlib, and Pillow (`python3 -m pip install -r requirements-qc.txt`).
 
-A pre-release baseline was end-to-end tested with a FreeSurfer 7.4.1 runtime against reconstructions produced by FreeSurfer 7.2.0. FSHarvest 1.0.0 adds release-integrity fixes covered by the automated regression suite; repeat the representative-subject FreeSurfer smoke test before publishing the 1.0.0 release. Validate other FreeSurfer releases on representative subjects before study-wide use.
+A pre-release baseline was end-to-end tested with a FreeSurfer 7.4.1 runtime against reconstructions produced by FreeSurfer 7.2.0. FSHarvest 1.0.0rc1 is a release candidate whose integrity fixes are covered by the automated regression suite; repeat the representative-subject FreeSurfer smoke test on the exact release commit before publishing 1.0.0. Validate other FreeSurfer releases on representative subjects before study-wide use.
 
 ```bash
 cd /path/to/FSHarvest
@@ -35,7 +35,7 @@ bash install.sh
 export PATH="$HOME/.local/bin:$PATH"
 ```
 
-`install.sh` copies the complete tool, release documentation, and pinned atlas assets to `~/.local/lib/fsharvest`, then creates `~/.local/bin/fsharvest`. The installed command is independent of the source checkout. Supply a different prefix as the first argument if needed, for example `bash install.sh /opt/fsharvest`.
+`install.sh` stages the complete tool, documentation, and pinned atlas assets in an immutable version directory under `~/.local/lib/fsharvest/`, then atomically switches `current` and creates `~/.local/bin/fsharvest`. The installed command is independent of the source checkout. Supply a different prefix as the first argument if needed, for example `bash install.sh /opt/fsharvest`. Use `bash install.sh --check [PREFIX]` for self-check and `bash install.sh --uninstall [PREFIX]` to remove launch links while retaining version directories.
 
 Installation is optional. The tool can always be run directly with `bash /path/to/FSHarvest/fsharvest ...`.
 
@@ -89,7 +89,7 @@ fsharvest INPUT OUTPUT --qc-plots --qc-atlases dk68 schaefer100
 fsharvest INPUT OUTPUT --atlases dk68 schaefer100 --export-to-freesurfer
 ```
 
-`--freesurfer-home /path/to/freesurfer` initializes that installation when FreeSurfer is not already on `PATH`. Cached outputs are reused only when the source files, atlas assets, FreeSurfer runtime/template, successful status, TSV schemas, semantic checks, and recorded output checksums all match. External annotations are structurally parsed, checked against the pinned region schema, and protected together with their statistics by per-artifact SHA-256 records. `PARTIAL`, `FAILED`, and damaged cached subjects are retried automatically; `--overwrite` ignores both private caches and reusable subject-level external atlas files, forcing fresh projection and statistics generation.
+`--freesurfer-home /path/to/freesurfer` initializes that installation when FreeSurfer is not already on `PATH`. Cached outputs are reused only when the cache schema, non-downgrade tool version, source files, atlas assets, FreeSurfer runtime/template, successful status, TSV schemas, semantic checks, and recorded output checksums all match. External annotations are structurally parsed, checked against the pinned region schema and surface vertex count, and protected together with their statistics by per-artifact SHA-256 records. `PARTIAL`, `FAILED`, and damaged cached subjects are retried automatically; `--overwrite` ignores private caches and reusable subject annotations, forcing fresh projection and statistics generation.
 
 Without `--atlases`, FSHarvest extracts only `dk68`. Every other atlas is opt-in so routine runs remain fast and produce compact tables.
 
@@ -101,6 +101,9 @@ The supplied Slurm wrapper requests 12 CPUs and runs 12 subjects concurrently in
 export FREESURFER_HOME=/path/to/freesurfer
 bash ./submit_slurm.sh /path/to/dir_to_all_subj /path/to/output
 ```
+
+Additional arguments are forwarded to FSHarvest, for example
+`bash ./submit_slurm.sh INPUT OUTPUT --atlases dk68 schaefer100 --limit 10`.
 
 Adjust time, memory, CPUs, account, and partition in `slurm/extract.sbatch` for the local cluster. Direct execution with `run_extract.sh` is preferable inside an existing allocation.
 
@@ -144,6 +147,7 @@ OUTPUT/
     ├── aseg.tsv
     ├── global.tsv
     ├── qc/ATLAS_inflated_4view.png
+    ├── qc/ATLAS_inflated_4view.png.json  # current-input/run sidecar
     ├── extract.log
     └── status.json
 ```
@@ -162,7 +166,7 @@ The long and wide tables are aggregated as streams, keeping only one subject's f
 
 These images detect gross projection or reconstruction problems; they do not replace interactive inspection of white/pial boundaries in Freeview.
 
-For `dk68` and `destrieux`, the normal FreeSurfer subject outputs are already the final inputs: no extra subject-level `.annot` is needed or created. For external atlases, FSHarvest reuses valid matching annotation/statistics files already present in the subject directory. An existing annotation skips `mri_surf2surf`; an existing annotation plus valid statistics skips both projection and `mris_anatomical_stats`. Otherwise the generated annotation and statistics are saved under `OUTPUT/per_subject/SUBJECT/` and reused automatically on later runs. Version 1.3 uses the FreeSurfer-style output folder name `label/`; an older `annotations/` cache is imported automatically and remains untouched. The artifact metadata records whether each result came from subject files, a projection, or the output cache.
+For `dk68` and `destrieux`, the normal FreeSurfer subject outputs are already the final inputs: no extra subject-level `.annot` is needed or created. For external atlases, FSHarvest may reuse a subject annotation only after validating its structure, regions, and vertex count against the current surface. Subject-level `.stats` files are not trusted without controlled provenance and are recalculated by default. Generated annotation and statistics are saved under `OUTPUT/per_subject/SUBJECT/` with content hashes and reused automatically on later runs after full validation. An older output-cache `annotations/` directory is imported into the canonical `label/` directory without deleting the old files.
 
 ## Optional export to FreeSurfer subjects
 
@@ -192,11 +196,13 @@ The package outputs `lh_euler`, `rh_euler`, and `euler_sum`. More negative value
 - External annotations use FreeSurfer's default `mri_surf2surf` mapping method from their declared source template. Schaefer, Glasser, Economo, and Vos de Wael use micapipe's `fsaverage5` files; DK308 uses `fsaverage`.
 - `run_metadata.json` records the run ID, input/output roots, atlas and source-file SHA-256 values, pinned region-set hashes, runtime/template fingerprints, options, and timestamps. Per-subject cache fingerprints use file size and nanosecond modification time for large FreeSurfer inputs and SHA-256 for bundled atlas assets. Cached TSV files are independently protected by SHA-256 and semantic revalidation.
 - Inspect surface reconstruction quality before interpreting any atlas. Automated ROI counts do not replace visual QC.
-- Parse/join regions by atlas, hemisphere, and label name. Never assume row order is stable across unrelated atlases.
+- Parse/join regions by atlas, hemisphere, and the `region` field. Never assume row order is stable across unrelated atlases.
 
 ## Citation and licenses
 
 FSHarvest source code is MIT-licensed. Bundled atlas files keep their upstream licenses; see [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) and [`atlases/README.md`](atlases/README.md). Research users should also cite the relevant atlas publications. Machine-readable software citation metadata is provided in [`CITATION.cff`](CITATION.cff).
+
+Output tables, status files, run metadata, logs, and QC HTML can contain subject identifiers and absolute local paths. Treat the output directory as restricted data and review/de-identify it before sharing or publishing.
 
 ## Tests
 

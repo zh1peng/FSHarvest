@@ -40,6 +40,6 @@ schaefer400__L_7Networks_LH_Vis_1_thickavg
 ## 检查清单
 
 1. 在 `atlas_manifest.tsv` 核对预期区域数。
-2. 在 `subjects.tsv` 检查所有 subject-atlas 组合状态。
+2. 在 `subjects.tsv` 检查受试者整体状态，并结合逐受试者 `status.json` 中的 atlas/hemisphere 错误定位不完整组合。
 3. 对外部 Atlas 至少绘制少量代表性 QC。
 4. 在统计模型中记录 Atlas、尺度和 FreeSurfer 版本。

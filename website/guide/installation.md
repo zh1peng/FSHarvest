@@ -18,13 +18,21 @@ bash install.sh
 export PATH="$HOME/.local/bin:$PATH"
 ```
 
-默认安装位置是 `~/.local/lib/fsharvest`，并在 `~/.local/bin/fsharvest` 创建入口。
+默认安装到 `~/.local/lib/fsharvest/VERSION/`，复制与自检完成后原子切换 `current`
+链接，并在 `~/.local/bin/fsharvest` 创建入口。不同版本不会相互合并。
 安装后的命令不依赖源码检出目录。
 
 可以把其他前缀作为第一个参数：
 
 ```bash
 bash install.sh /opt/fsharvest
+```
+
+安装后检查或移除启动链接：
+
+```bash
+bash install.sh --check /opt/fsharvest
+bash install.sh --uninstall /opt/fsharvest
 ```
 
 ## 不安装直接运行

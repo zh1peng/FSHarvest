@@ -17,7 +17,8 @@
 fsharvest INPUT OUTPUT --jobs 8 --overwrite
 ```
 
-`--overwrite` 会忽略私有输出缓存和可复用的 subject-level 外部 Atlas 文件，重新完成投影与统计。
+`--overwrite` 会忽略私有输出缓存和可复用的 subject-level annotation，重新完成投影与统计。
+缺少受控 FSHarvest provenance 的 subject-level `.stats` 默认不会被复用。
 它绝不授权覆盖 FreeSurfer 输入目录中已经存在的冲突文件。
 
 ## 运行来源

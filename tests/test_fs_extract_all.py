@@ -61,7 +61,9 @@ def write_valid_aseg(path: Path) -> None:
     ]
     path.write_text(
         """# subjectname sub-01
+# NRows 20
 # NTableCols 10
+# ColHeaders Index SegId NVoxels Volume_mm3 StructName normMean normStdDev normMin normMax normRange
 # Measure EstimatedTotalIntraCranialVol, eTIV, Estimated total intracranial volume, 1234.5, mm^3
 # Measure lhSurfaceHoles, lhSurfaceHoles, Number of defect holes, 12, unitless
 # Measure rhSurfaceHoles, rhSurfaceHoles, Number of defect holes, 13, unitless
@@ -99,13 +101,13 @@ class ExtractionUnitTests(unittest.TestCase):
     def test_release_version_metadata_is_synchronized(self):
         root = MODULE_PATH.parent
         version = (root / "VERSION").read_text(encoding="utf-8").strip()
-        self.assertEqual(version, MODULE.PIPELINE_VERSION)
+        self.assertEqual(version, MODULE.TOOL_VERSION)
         self.assertIn(
             f"version: {version}",
             (root / "CITATION.cff").read_text(encoding="utf-8"),
         )
         self.assertIn(
-            f"## {version} -",
+            f"## {version}",
             (root / "CHANGELOG.md").read_text(encoding="utf-8"),
         )
 
@@ -174,6 +176,21 @@ class ExtractionUnitTests(unittest.TestCase):
                     ),
                     [],
                 )
+
+    def test_annotation_vertex_count_must_match_surface(self):
+        atlas_dir = MODULE_PATH.parent / "atlases"
+        path = atlas_dir / "lh.schaefer-100_mics.annot"
+        vertex_count, _names = MODULE.annotation_contents(path)
+        schema = MODULE.load_region_schema(atlas_dir, ("schaefer100",))
+        errors = MODULE.validate_annotation_file(
+            path,
+            MODULE.ATLAS_SPECS["schaefer100"],
+            "schaefer100",
+            "lh",
+            schema["schaefer100:lh"],
+            vertex_count + 1,
+        )
+        self.assertIn("surface has", " ".join(errors))
 
     def test_parse_cortical_stats(self):
         content = """# subjectname sub-01
@@ -283,6 +300,45 @@ region_b 11 21 31 2.6 0.2 0.3 0.4 5.0 6.0
             self.assertNotIn("qc_status", result)
             self.assertNotIn("export_status", result)
 
+    def test_same_schema_older_tool_cache_is_reused_after_validation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            subject = root / "sub-01"
+            output = root / "output"
+            write_cortical(subject / "stats" / "lh.aparc.stats", 34)
+            write_cortical(subject / "stats" / "rh.aparc.stats", 34)
+            write_valid_aseg(subject / "stats" / "aseg.stats")
+            (subject / "scripts").mkdir()
+            (subject / "scripts" / "recon-all.done").touch()
+            args = (subject, output, root, ("dk68",), "atlas", {}, root, "FS-7", "template", False)
+            with patch.object(MODULE, "TOOL_VERSION", "1.0.0rc0"):
+                first = MODULE.extract_subject(*args)
+            second = MODULE.extract_subject(*args)
+            self.assertEqual(first["cache_produced_by_tool_version"], "1.0.0rc0")
+            self.assertEqual(second["cache_hit"], 1)
+            self.assertEqual(second["cache_produced_by_tool_version"], "1.0.0rc0")
+            self.assertEqual(
+                second["cache_last_validated_by_tool_version"], MODULE.TOOL_VERSION
+            )
+
+    def test_different_cache_schema_is_recomputed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            subject = root / "sub-01"
+            output = root / "output"
+            write_cortical(subject / "stats" / "lh.aparc.stats", 34)
+            write_cortical(subject / "stats" / "rh.aparc.stats", 34)
+            write_valid_aseg(subject / "stats" / "aseg.stats")
+            (subject / "scripts").mkdir()
+            (subject / "scripts" / "recon-all.done").touch()
+            args = (subject, output, root, ("dk68",), "atlas", {}, root, "FS-7", "template", False)
+            with patch.object(MODULE, "CACHE_SCHEMA_VERSION", 0):
+                first = MODULE.extract_subject(*args)
+            second = MODULE.extract_subject(*args)
+            self.assertEqual(first["cache_schema_version"], 0)
+            self.assertEqual(second["cache_schema_version"], MODULE.CACHE_SCHEMA_VERSION)
+            self.assertEqual(second["cache_hit"], 0)
+
     def test_region_schema_rejects_wrong_names_with_correct_count(self):
         schema = MODULE.load_region_schema(MODULE_PATH.parent / "atlases", ("dk68",))
         rows = [
@@ -306,6 +362,35 @@ region_b 11 21 31 2.6 0.2 0.3 0.4 5.0 6.0
         row = dict(zip(MODULE.ASEG_COLUMNS, [1, 2, 3, 4.5, "Left-Test", 6, 7, 8, 9, 10]))
         errors = MODULE.validate_aseg_rows([row], [])
         self.assertIn("expected at least", " ".join(errors))
+
+    def test_aseg_declared_row_count_must_match(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "aseg.stats"
+            write_valid_aseg(path)
+            text = path.read_text(encoding="utf-8").replace("# NRows 20", "# NRows 79")
+            path.write_text(text, encoding="utf-8")
+            errors = MODULE.validate_aseg_rows(
+                MODULE.parse_aseg_stats(path),
+                MODULE.parse_measure_lines(path),
+                MODULE.parse_aseg_header(path),
+            )
+        self.assertIn("NRows does not match", " ".join(errors))
+
+    def test_aseg_column_order_must_match_supported_schema(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "aseg.stats"
+            write_valid_aseg(path)
+            text = path.read_text(encoding="utf-8").replace(
+                "# ColHeaders Index SegId NVoxels Volume_mm3",
+                "# ColHeaders SegId Index NVoxels Volume_mm3",
+            )
+            path.write_text(text, encoding="utf-8")
+            errors = MODULE.validate_aseg_rows(
+                MODULE.parse_aseg_stats(path),
+                MODULE.parse_measure_lines(path),
+                MODULE.parse_aseg_header(path),
+            )
+        self.assertIn("ColHeaders are missing or unsupported", " ".join(errors))
 
     def test_builtin_atlas_uses_existing_stats_without_projection_or_copy(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -442,7 +527,7 @@ region_b 11 21 31 2.6 0.2 0.3 0.4 5.0 6.0
             self.assertEqual(annotation.read_bytes(), b"projected")
             self.assertEqual(len(calls), 6)
 
-    def test_existing_subject_annotation_and_stats_are_reused(self):
+    def test_existing_subject_stats_are_not_reused_without_provenance(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             subject = root / "sub-01"
@@ -464,12 +549,29 @@ region_b 11 21 31 2.6 0.2 0.3 0.4 5.0 6.0
                     50,
                     annotation_name=name,
                 )
+                stats_path = subject / "stats" / name.replace(".annot", ".stats")
+                stats_path.write_text(
+                    "# subjectname sub-other\n" + stats_path.read_text(encoding="utf-8"),
+                    encoding="utf-8",
+                )
 
-            def unexpected_command(*_args):
-                self.fail("FreeSurfer command should not run when valid subject artifacts exist")
+            calls = []
+
+            def fake_run(command, _env, _log):
+                calls.append(command)
+                if "-f" in command:
+                    write_cortical(
+                        Path(command[command.index("-f") + 1]),
+                        50,
+                        annotation_name=Path(command[command.index("-a") + 1]).name,
+                    )
+                else:
+                    target = Path(command[command.index("--tval") + 1])
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    target.write_bytes(b"projected")
 
             with patch.object(MODULE, "ensure_link", lambda *_args: None), patch.object(
-                MODULE, "run_command", unexpected_command
+                MODULE, "run_command", fake_run
             ):
                 result = MODULE.extract_subject(
                     subject,
@@ -482,17 +584,18 @@ region_b 11 21 31 2.6 0.2 0.3 0.4 5.0 6.0
                     "FS-7",
                     "template",
                     False,
-                )
+            )
 
             subject_out = output / "per_subject" / "sub-01"
             artifact = json.loads(
                 (subject_out / "stats" / "lh.schaefer100.artifact.json").read_text(encoding="utf-8")
             )
             self.assertEqual(result["status"], "OK")
-            self.assertEqual(artifact["source"], "subject_stats")
+            self.assertEqual(artifact["source"], "projected")
+            self.assertEqual(len(calls), 4)
             self.assertEqual(
                 (subject_out / "label" / "lh.schaefer100.annot").read_bytes(),
-                b"subject-annotation",
+                b"projected",
             )
 
     def test_overwrite_does_not_reuse_subject_artifacts(self):
@@ -558,7 +661,7 @@ region_b 11 21 31 2.6 0.2 0.3 0.4 5.0 6.0
             self.assertEqual(path, subject_out / "label" / "lh.schaefer100.annot")
             self.assertEqual(path.read_bytes(), b"legacy")
 
-    def test_version_12_cache_is_reused_and_migrated(self):
+    def test_newer_tool_cache_is_not_reused_by_older_tool(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             subject = root / "sub-01"
@@ -592,22 +695,19 @@ region_b 11 21 31 2.6 0.2 0.3 0.4 5.0 6.0
             )
             with patch.object(MODULE, "ensure_link", lambda *_args: None), patch.object(
                 MODULE, "run_command", fake_run
-            ), patch.object(MODULE, "PIPELINE_VERSION", "1.2.0"):
+            ), patch.object(MODULE, "TOOL_VERSION", "1.2.0"):
                 first = MODULE.extract_subject(*args)
             subject_out = output / "per_subject" / "sub-01"
             (subject_out / "label").rename(subject_out / "annotations")
 
-            def unexpected_command(*_args):
-                self.fail("A compatible 1.2 cache must not be recomputed")
-
             with patch.object(MODULE, "ensure_link", lambda *_args: None), patch.object(
-                MODULE, "run_command", unexpected_command
+                MODULE, "run_command", fake_run
             ):
                 second = MODULE.extract_subject(*args)
 
-            self.assertEqual(first["pipeline_version"], "1.2.0")
-            self.assertEqual(second["pipeline_version"], MODULE.PIPELINE_VERSION)
-            self.assertEqual(second["cache_migrated_from"], "1.2.0")
+            self.assertEqual(first["tool_version"], "1.2.0")
+            self.assertEqual(second["tool_version"], MODULE.TOOL_VERSION)
+            self.assertEqual(second["cache_hit"], 0)
             self.assertTrue((subject_out / "label" / "lh.schaefer100.annot").is_file())
 
     def test_legacy_external_cache_without_artifact_checksums_is_recomputed(self):
@@ -644,7 +744,7 @@ region_b 11 21 31 2.6 0.2 0.3 0.4 5.0 6.0
             )
             with patch.object(MODULE, "ensure_link", lambda *_args: None), patch.object(
                 MODULE, "run_command", fake_run
-            ), patch.object(MODULE, "PIPELINE_VERSION", "1.3.0"):
+            ), patch.object(MODULE, "TOOL_VERSION", "1.0.0rc0"):
                 MODULE.extract_subject(*args)
 
             subject_out = output / "per_subject" / "sub-01"
@@ -753,7 +853,7 @@ region_b 11 21 31 2.6 0.2 0.3 0.4 5.0 6.0
             self.assertFalse((subject / "label" / "rh.schaefer100.annot").exists())
             self.assertEqual(list((subject / "stats").iterdir()), [])
 
-    def test_existing_subject_annotation_skips_projection(self):
+    def test_invalid_subject_annotation_falls_back_to_projection(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             subject = root / "sub-01"
@@ -774,11 +874,16 @@ region_b 11 21 31 2.6 0.2 0.3 0.4 5.0 6.0
 
             def fake_run(command, _env, _log):
                 calls.append(command)
-                write_cortical(
-                    Path(command[command.index("-f") + 1]),
-                    50,
-                    annotation_name=Path(command[command.index("-a") + 1]).name,
-                )
+                if "-f" in command:
+                    write_cortical(
+                        Path(command[command.index("-f") + 1]),
+                        50,
+                        annotation_name=Path(command[command.index("-a") + 1]).name,
+                    )
+                else:
+                    target = Path(command[command.index("--tval") + 1])
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    target.write_bytes(b"projected")
 
             with patch.object(MODULE, "ensure_link", lambda *_args: None), patch.object(
                 MODULE, "run_command", fake_run
@@ -794,11 +899,14 @@ region_b 11 21 31 2.6 0.2 0.3 0.4 5.0 6.0
                     "FS-7",
                     "template",
                     False,
-                )
+            )
 
             self.assertEqual(result["status"], "OK")
-            self.assertEqual(len(calls), 2)
-            self.assertTrue(all(command[0] == "mris_anatomical_stats" for command in calls))
+            self.assertEqual(len(calls), 4)
+            self.assertEqual(
+                (output / "per_subject" / "sub-01" / "label" / "lh.schaefer100.annot").read_bytes(),
+                b"projected",
+            )
 
     def test_streaming_aggregate_outputs_expected_rows(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -814,7 +922,7 @@ region_b 11 21 31 2.6 0.2 0.3 0.4 5.0 6.0
                 MODULE.extract_subject(
                     subject, output, root, ("dk68",), "atlas", {}, root, "FS-7", "template", False
                 )
-            metadata = {"tool": "test", "pipeline_version": MODULE.PIPELINE_VERSION}
+            metadata = {"tool": "test", "tool_version": MODULE.TOOL_VERSION}
             MODULE.aggregate(output, [subject], ("dk68",), metadata)
             self.assertEqual(len(MODULE.read_tsv(output / "cortical_long.tsv")), 68)
             self.assertEqual(len(MODULE.read_tsv(output / "aseg_long.tsv")), MODULE.MIN_ASEG_ROWS)
@@ -847,7 +955,7 @@ region_b 11 21 31 2.6 0.2 0.3 0.4 5.0 6.0
                 output,
                 [subject],
                 ("dk68",),
-                {"tool": "test", "pipeline_version": MODULE.PIPELINE_VERSION, "run_id": "run-1"},
+                {"tool": "test", "tool_version": MODULE.TOOL_VERSION, "run_id": "run-1"},
             )
             status = json.loads(
                 (output / "per_subject" / "sub-01" / "status.json").read_text(encoding="utf-8")
@@ -882,6 +990,8 @@ region_b 11 21 31 2.6 0.2 0.3 0.4 5.0 6.0
             )
             self.assertEqual(status["run_id"], run_metadata["run_id"])
             self.assertEqual(status["status"], "OK")
+            self.assertFalse((output / "work").exists())
+            self.assertFalse((output / ".fsharvest.lock").exists())
 
             failed_output = root / "failed-output"
             failed_argv = [
@@ -898,6 +1008,40 @@ region_b 11 21 31 2.6 0.2 0.3 0.4 5.0 6.0
             )
             self.assertEqual(failed_status["status"], "FAILED")
             self.assertIn("boom", failed_status["errors"])
+            self.assertFalse((failed_output / "work").exists())
+            self.assertFalse((failed_output / ".fsharvest.lock").exists())
+
+    def test_output_lock_rejects_concurrent_writer(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / "output"
+            first = MODULE.RunResources()
+            second = MODULE.RunResources()
+            first.acquire(output, False)
+            try:
+                with self.assertRaisesRegex(RuntimeError, "Output directory is locked"):
+                    second.acquire(output, False)
+            finally:
+                first.cleanup()
+                second.cleanup()
+            self.assertFalse((output / ".fsharvest.lock").exists())
+
+    def test_force_unlock_replaces_only_stale_same_host_lock(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / "output"
+            output.mkdir()
+            lock = output / ".fsharvest.lock"
+            lock.write_text(
+                json.dumps({"hostname": MODULE.socket.gethostname(), "pid": 999999999}),
+                encoding="utf-8",
+            )
+            resources = MODULE.RunResources()
+            with patch.object(MODULE, "process_is_running", return_value=False):
+                resources.acquire(output, True)
+            try:
+                current = json.loads(lock.read_text(encoding="utf-8"))
+                self.assertEqual(current["lock_id"], resources.lock_id)
+            finally:
+                resources.cleanup()
 
     def test_qc_dependencies_are_checked_before_output_is_created(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -917,30 +1061,49 @@ region_b 11 21 31 2.6 0.2 0.3 0.4 5.0 6.0
                     MODULE.main(argv)
             self.assertFalse(output.exists())
 
-    def test_qc_report_uses_only_relative_image_links(self):
+    def test_qc_report_uses_only_current_validated_images(self):
         with tempfile.TemporaryDirectory() as tmp:
             output = Path(tmp) / "output"
             subject = Path(tmp) / "inputs" / "sub-01"
             subject_out = output / "per_subject" / subject.name
+            for hemi in MODULE.HEMISPHERES:
+                (subject / "surf").mkdir(parents=True, exist_ok=True)
+                (subject / "label").mkdir(exist_ok=True)
+                (subject / "surf" / f"{hemi}.inflated").write_bytes(b"surface")
+                (subject / "label" / f"{hemi}.aparc.annot").write_bytes(b"annotation")
             image = subject_out / "qc" / "dk68_inflated_4view.png"
             image.parent.mkdir(parents=True)
             image.write_bytes(b"png")
             existing_image = subject_out / "qc" / "schaefer100_pial_4view.png"
             existing_image.write_bytes(b"png")
+            current = MODULE.write_qc_artifact_metadata(
+                subject, subject_out, image, "dk68", "inflated", 150, "run-1"
+            )
             records = [(
                 subject,
                 subject_out,
-                {"subject_id": "participant-01", "status": "OK", "qc_status": "OK"},
+                {
+                    "subject_id": "participant-01",
+                    "status": "OK",
+                    "qc_status": "OK",
+                    "run_id": "run-1",
+                    "qc_artifacts": [current],
+                },
             )]
             MODULE.write_qc_report(output, records, ("dk68",))
             report = (output / "all_qc.html").read_text(encoding="utf-8")
             self.assertIn("per_subject/sub-01/qc/dk68_inflated_4view.png", report)
-            self.assertIn("per_subject/sub-01/qc/schaefer100_pial_4view.png", report)
+            self.assertNotIn("schaefer100_pial_4view.png", report)
             self.assertNotIn(str(output), report)
             self.assertIn('data-subject="participant-01 sub-01"', report)
-            self.assertEqual(report.count('class="atlas-tab"'), 2)
-            self.assertEqual(report.count('class="atlas-panel"'), 2)
+            self.assertEqual(report.count('class="atlas-tab"'), 1)
+            self.assertEqual(report.count('class="atlas-panel"'), 1)
             self.assertNotIn("<select", report)
+
+            image.write_bytes(b"changed")
+            MODULE.write_qc_report(output, records, ("dk68",))
+            refreshed = (output / "all_qc.html").read_text(encoding="utf-8")
+            self.assertNotIn("dk68_inflated_4view.png", refreshed)
 
 
 if __name__ == "__main__":

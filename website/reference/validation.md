@@ -13,12 +13,14 @@
 基线验证覆盖 Atlas 预期区域数、九类皮层测量的有限值、长/宽表聚合、四视图 PNG、
 相对路径 HTML 图集以及 annotation/stats 的复用路径。
 
-## 1.0.0 发布候选
+## 1.0.0rc1 发布候选
 
-1.0.0 增加了缓存内容校验、无依赖 annotation 解析、固定区域名称集合、逐产物 checksum、
-更强的 `aseg` 完整性检查、可信结果聚合和运行隔离。
+1.0.0rc1 分离了工具、缓存和输出 schema 版本，拒绝降级复用缓存，并增加 `aseg`
+头校验、不可信 subject stats 拒绝、输出锁、临时链接清理和当前 run 的 QC 指纹。
 
-本地回归套件包含 33 项测试，并在 Python 3.12 上通过 Ruff 与 mypy。
+本地回归套件包含 40 项测试，并在 Python 3.12 上通过 Ruff 与 mypy。`linux212` 上的
+40 项回归、真实 DK68 + Schaefer100 + QC、缓存重跑、损坏缓存重算及独立数值比较也已通过。
+这些结果仍需在最终提交后以该 commit SHA 重跑，才构成 release attestation。
 
 ::: warning 当前边界
 真实 FreeSurfer 提取和 Linux shell gates 仍需在最终 release commit 上重复后，才能把基线结果视为 1.0.0 正式发布声明。

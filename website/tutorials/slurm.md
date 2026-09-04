@@ -9,6 +9,12 @@ export FREESURFER_HOME=/path/to/freesurfer
 bash ./submit_slurm.sh /path/to/subjects /path/to/output
 ```
 
+第二个位置参数之后的 FSHarvest 参数会安全转发到作业，例如：
+
+```bash
+bash ./submit_slurm.sh INPUT OUTPUT --atlases dk68 schaefer100 --limit 10 --qc-plots
+```
+
 ## 提交前调整
 
 根据集群策略编辑 `slurm/extract.sbatch`：

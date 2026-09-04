@@ -1,6 +1,32 @@
-# Validation report — FSHarvest 1.0.0 release candidate
+# Validation report — FSHarvest 1.0.0rc1
 
 Date: 2026-09-04
+
+## 1.0.0rc1 remediation verification
+
+This verification used the current uncommitted remediation working tree based on commit
+`43e8760223b036c9cd4de513ef6d2e5a711e2b23`. It is evidence for the candidate changes,
+not a release-commit attestation. The tested source hashes were:
+
+- `fs_extract_all.py`: `83e109f8990349a5390ae7acd9a7ef0f17f9c6b43f25609b6549da58cc47f5b4`
+- `fs_render_qc.py`: `39763fd0bfbf5aed4a39bf646c800b03c345a67979ea69aa84a1c3f68c23b31d`
+
+On `linux212`, all 40 tests passed. Bash syntax checks and a staged immutable-prefix install,
+`--check`, and `--uninstall` passed. Ruff and mypy passed locally; those modules were not
+installed in the remote system Python. ShellCheck passed on `linux212` using the
+`koalaman/shellcheck:stable` container image.
+
+A real cold run used FreeSurfer 7.4.1 and the lexically first CHCP_FS72 subject with DK68,
+Schaefer100, and 100-DPI QC. It completed `OK` in 41.88 seconds with 856,608 KiB maximum
+RSS and created two fingerprinted QC images. An unchanged extraction rerun completed in
+0.76 seconds with 67,704 KiB maximum RSS and reported `cache_hit=1`. Running without QC
+did not include the old PNGs in the new HTML. No `work/` links or output lock remained.
+After a cached cortical value was altered, the next run rejected and repaired the cache.
+
+Independent numeric comparisons passed with zero observed difference at the serialized
+precision: 34 left-hemisphere DK thickness values against `aparcstats2table`, 45 aseg
+volumes shared with `asegstats2table`, and all nine fields of 100 Schaefer rows generated
+by a separate `mris_anatomical_stats` invocation.
 
 ## Environment
 
@@ -31,7 +57,7 @@ Date: 2026-09-04
 - The new-atlas run contained no non-finite cortical measurements; `all_features_wide.tsv` contained 10 subjects and 11,000 columns.
 - All four new atlases rendered successfully as compact four-view PNGs for a real subject at 100 DPI; 52.68 seconds total and maximum reported RSS 912,428 KiB in the single sequential renderer process.
 - Headless integrated DK68 four-view rendering: passed; the compact PNG was 949×150 pixels (84,258 bytes), with 13.81 seconds elapsed and maximum reported RSS 791,852 KiB at 100 DPI on a warm filesystem cache.
-- Existing subject-level external annotations and valid statistics: reuse paths verified without invoking the corresponding FreeSurfer commands; annotation-only reuse verified to skip projection while still generating statistics.
+- Historical baseline only: subject-level external annotation/statistics reuse was tested in the pre-remediation code. In 1.0.0rc1, only fully validated annotations may be reused; subject-level statistics without controlled FSHarvest provenance are recalculated.
 - Output annotations now use `per_subject/SUBJECT/label/`; legacy `annotations/` caches are imported without deleting the old files.
 - `--export-to-freesurfer` is disabled by default. Unit coverage verifies validated annotation/stat export, idempotent repeat export, and refusal to overwrite a conflicting subject file.
 - Real Schaefer100 validation used a writable `/tmp` wrapper around `sub-3001_T1w_cropped`; the NAS reconstruction remained untouched. The default cold run wrote annotations to `OUTPUT/per_subject/SUBJECT/label/` and completed in 14.42 seconds with 555,024 KiB maximum RSS.
@@ -48,6 +74,6 @@ Date: 2026-09-04
 
 This validates extraction and rendering for the environment above. It is not evidence of compatibility with every FreeSurfer release. In particular, FreeSurfer 8.x must be tested separately before being added to the supported runtime matrix. Four-view rendering is intentionally optional because full-resolution surface rendering requires substantially more memory than extraction or aggregation.
 
-## 1.0.0 release-candidate regression checks
+## 1.0.0rc1 regression checks
 
-The 1.0.0 release candidate adds cache-content verification, dependency-free annotation parsing, pinned region-set validation, per-artifact checksums, stronger `aseg` completeness checks, trusted-only cohort aggregation, per-run status isolation, transactional atlas downloads, synchronized release-metadata checks, and CLI orchestration tests. The local regression suite contains 33 tests and passes with Ruff and mypy on Python 3.12. Real FreeSurfer extraction and the Linux shell gates must be repeated on the final commit before the 1.0.0 release tag; the measurements above describe the pre-release baseline rather than a claim about the final release candidate.
+The 1.0.0rc1 release candidate separates tool/cache/output versions, rejects downgrade cache reuse, validates `aseg.stats` headers, disables unproven subject-level stats reuse, locks each output directory, removes temporary subject links, and fingerprints current-run QC images. The local regression suite contains 40 tests and passes with Ruff and mypy on Python 3.12. The verification above must be repeated on the final committed source before the 1.0.0 release tag; it does not claim that an uncommitted working tree is a stable release.
