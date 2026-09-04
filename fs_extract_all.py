@@ -33,8 +33,8 @@ from typing import Any, Iterable, Iterator, Optional
 from urllib.parse import quote
 
 
-PIPELINE_VERSION = "1.3.1"
-COMPATIBLE_CACHE_PIPELINE_VERSIONS = ("1.2.0", "1.3.0")
+PIPELINE_VERSION = "1.0.0"
+COMPATIBLE_CACHE_PIPELINE_VERSIONS = ("1.2.0", "1.3.0", "1.3.1")
 TOOL_NAME = "FSHarvest"
 HEMISPHERES = ("lh", "rh")
 CORTICAL_COLUMNS = (

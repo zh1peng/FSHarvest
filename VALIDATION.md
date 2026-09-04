@@ -1,4 +1,4 @@
-# Validation report — FSHarvest 1.3.0 baseline
+# Validation report — FSHarvest 1.0.0 release candidate
 
 Date: 2026-09-04
 
@@ -36,8 +36,8 @@ Date: 2026-09-04
 - `--export-to-freesurfer` is disabled by default. Unit coverage verifies validated annotation/stat export, idempotent repeat export, and refusal to overwrite a conflicting subject file.
 - Real Schaefer100 validation used a writable `/tmp` wrapper around `sub-3001_T1w_cropped`; the NAS reconstruction remained untouched. The default cold run wrote annotations to `OUTPUT/per_subject/SUBJECT/label/` and completed in 14.42 seconds with 555,024 KiB maximum RSS.
 - Enabling `--export-to-freesurfer` copied four files (left/right annotation and stats) into the temporary subject in 0.14 seconds with 23,296 KiB maximum RSS. Source/output SHA-256 values matched; an immediate repeated export reported `0 new, 4 existing` and did not overwrite them.
-- A fresh-prefix `install.sh` installation reported version 1.3.0, exposed the export option in `--help`, and retained the bundled atlas manifest.
-- A 1.3.0 run over the first 10 CHCP subjects with DK68, Schaefer400, Glasser360, Economo, and Vos de Wael 300 completed 10/10 `OK` in 267 seconds. It produced 12,140 cortical rows with exact atlas totals (680, 4,000, 3,600, 860, and 3,000 respectively) and 80 external annotations under the new per-subject `label/` directories. The 80 legacy `annotations/` files remained untouched, export was false, and no normalized external-atlas files appeared in the NAS subjects.
+- A fresh-prefix `install.sh` installation of the pre-release baseline exposed the export option in `--help` and retained the bundled atlas manifest.
+- A pre-release run over the first 10 CHCP subjects with DK68, Schaefer400, Glasser360, Economo, and Vos de Wael 300 completed 10/10 `OK` in 267 seconds. It produced 12,140 cortical rows with exact atlas totals (680, 4,000, 3,600, 860, and 3,000 respectively) and 80 external annotations under the new per-subject `label/` directories. The 80 legacy `annotations/` files remained untouched, export was false, and no normalized external-atlas files appeared in the NAS subjects.
 - Real Schaefer100 extraction on one subject: cold run 17.54 seconds; unchanged rerun 0.47 seconds and 22,528 KiB maximum RSS, with no second extraction recorded.
 - `all_qc.html`: relative image paths verified, no absolute output path embedded, and atlas tabs/tab-local subject filtering verified in a browser.
 - Current-source Schaefer 100–1000 extraction (micapipe `fsaverage5` annotations, CBIG projection procedure) with four concurrent subjects: 10/10 subjects `OK`; 12:56.96 elapsed and maximum reported RSS 617,772 KiB.
@@ -48,6 +48,6 @@ Date: 2026-09-04
 
 This validates extraction and rendering for the environment above. It is not evidence of compatibility with every FreeSurfer release. In particular, FreeSurfer 8.x must be tested separately before being added to the supported runtime matrix. Four-view rendering is intentionally optional because full-resolution surface rendering requires substantially more memory than extraction or aggregation.
 
-## 1.3.1 release-candidate regression checks
+## 1.0.0 release-candidate regression checks
 
-The 1.3.1 release candidate adds cache-content verification, dependency-free annotation parsing, pinned region-set validation, per-artifact checksums, stronger `aseg` completeness checks, trusted-only cohort aggregation, per-run status isolation, transactional atlas downloads, synchronized release-metadata checks, and CLI orchestration tests. The local regression suite contains 33 tests and passes with Ruff and mypy on Python 3.12. Real FreeSurfer extraction and the Linux shell gates must be repeated on the final commit before the 1.3.1 release tag; the measurements above remain the 1.3.0 baseline rather than a claim about the release candidate.
+The 1.0.0 release candidate adds cache-content verification, dependency-free annotation parsing, pinned region-set validation, per-artifact checksums, stronger `aseg` completeness checks, trusted-only cohort aggregation, per-run status isolation, transactional atlas downloads, synchronized release-metadata checks, and CLI orchestration tests. The local regression suite contains 33 tests and passes with Ruff and mypy on Python 3.12. Real FreeSurfer extraction and the Linux shell gates must be repeated on the final commit before the 1.0.0 release tag; the measurements above describe the pre-release baseline rather than a claim about the final release candidate.
