@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Resolve this file even when invoked through ~/.local/bin/fsharvest.
+SOURCE_PATH="${BASH_SOURCE[0]}"
+while [[ -L "${SOURCE_PATH}" ]]; do
+  SOURCE_DIR="$(cd -P "$(dirname "${SOURCE_PATH}")" && pwd)"
+  SOURCE_PATH="$(readlink "${SOURCE_PATH}")"
+  [[ "${SOURCE_PATH}" != /* ]] && SOURCE_PATH="${SOURCE_DIR}/${SOURCE_PATH}"
+done
+TOOL_DIR="$(cd -P "$(dirname "${SOURCE_PATH}")" && pwd)"
+
+# Help and version do not require an initialized FreeSurfer environment.
+if [[ $# -eq 1 && ( "$1" == "-h" || "$1" == "--help" || "$1" == "--version" ) ]]; then
+  exec python3 "${TOOL_DIR}/fs_extract_all.py" "$@"
+fi
+
+exec bash "${TOOL_DIR}/run_extract.sh" "$@"

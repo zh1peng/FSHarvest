@@ -1,0 +1,201 @@
+{
+  "schema_version": 1,
+  "files": [
+    {
+      "file": "lh.500.aparc.annot",
+      "atlas": "dk308",
+      "sha256": "2f1e817da6f09f8d607127fc6958d2e722786ba35273a6992c344a682844f1da",
+      "source_commit": "b4f8e8a3a56cee6a25187c075ed82157a3a1e67a",
+      "source_url": "https://raw.githubusercontent.com/KirstieJane/UCHANGE_ProcessingPipeline/b4f8e8a3a56cee6a25187c075ed82157a3a1e67a/FS_SUBJECTS/fsaverageSubP/label/lh.500.aparc.annot"
+    },
+    {
+      "file": "rh.500.aparc.annot",
+      "atlas": "dk308",
+      "sha256": "d6034f82b2e2e391cd7e080303afba089c24eb86db3ceabb4c79314e0a95d02d",
+      "source_commit": "b4f8e8a3a56cee6a25187c075ed82157a3a1e67a",
+      "source_url": "https://raw.githubusercontent.com/KirstieJane/UCHANGE_ProcessingPipeline/b4f8e8a3a56cee6a25187c075ed82157a3a1e67a/FS_SUBJECTS/fsaverageSubP/label/rh.500.aparc.annot"
+    },
+    {
+      "file": "lh.economo_mics.annot",
+      "atlas": "economo",
+      "sha256": "16fcc2c3bdf739b2c317863a1d28c32a9c904a0dcab753d7bdb88c902f70b4d9",
+      "source_commit": "4227ee660f216387df4310088dde026d1278dd8e",
+      "source_url": "https://raw.githubusercontent.com/MICA-MNI/micapipe/4227ee660f216387df4310088dde026d1278dd8e/parcellations/lh.economo_mics.annot"
+    },
+    {
+      "file": "rh.economo_mics.annot",
+      "atlas": "economo",
+      "sha256": "77ba073323215a0491a8874af3a8d73dc7052885302a87066f010aba9b5c1b18",
+      "source_commit": "4227ee660f216387df4310088dde026d1278dd8e",
+      "source_url": "https://raw.githubusercontent.com/MICA-MNI/micapipe/4227ee660f216387df4310088dde026d1278dd8e/parcellations/rh.economo_mics.annot"
+    },
+    {
+      "file": "lh.glasser-360_mics.annot",
+      "atlas": "glasser360",
+      "sha256": "ed3fabf9775e85ddcd7cac1d74db8e6d52fb07255e25b8571f71a328976eb93c",
+      "source_commit": "4227ee660f216387df4310088dde026d1278dd8e",
+      "source_url": "https://raw.githubusercontent.com/MICA-MNI/micapipe/4227ee660f216387df4310088dde026d1278dd8e/parcellations/lh.glasser-360_mics.annot"
+    },
+    {
+      "file": "rh.glasser-360_mics.annot",
+      "atlas": "glasser360",
+      "sha256": "b1d7e318529c5561cdadff6017134b8a71c8f918b224077181de5bcc801f0326",
+      "source_commit": "4227ee660f216387df4310088dde026d1278dd8e",
+      "source_url": "https://raw.githubusercontent.com/MICA-MNI/micapipe/4227ee660f216387df4310088dde026d1278dd8e/parcellations/rh.glasser-360_mics.annot"
+    },
+    {
+      "file": "lh.vosdewael-300_mics.annot",
+      "atlas": "vosdewael300",
+      "sha256": "841488826081bc2a0d900d61c96e2899468431058c24c7255afd6f09b6218fd3",
+      "source_commit": "4227ee660f216387df4310088dde026d1278dd8e",
+      "source_url": "https://raw.githubusercontent.com/MICA-MNI/micapipe/4227ee660f216387df4310088dde026d1278dd8e/parcellations/lh.vosdewael-300_mics.annot"
+    },
+    {
+      "file": "rh.vosdewael-300_mics.annot",
+      "atlas": "vosdewael300",
+      "sha256": "a5898e1270c2965d592c5e2387c9a8e620eddfc888945c3088c71b417800b1dc",
+      "source_commit": "4227ee660f216387df4310088dde026d1278dd8e",
+      "source_url": "https://raw.githubusercontent.com/MICA-MNI/micapipe/4227ee660f216387df4310088dde026d1278dd8e/parcellations/rh.vosdewael-300_mics.annot"
+    },
+    {
+      "file": "lh.schaefer-100_mics.annot",
+      "atlas": "schaefer100",
+      "sha256": "b19c45830f473c802db40171d6af745950edccd614d58f1cf5a25d1b2aa6adce",
+      "source_commit": "4227ee660f216387df4310088dde026d1278dd8e",
+      "source_url": "https://raw.githubusercontent.com/MICA-MNI/micapipe/4227ee660f216387df4310088dde026d1278dd8e/parcellations/lh.schaefer-100_mics.annot"
+    },
+    {
+      "file": "rh.schaefer-100_mics.annot",
+      "atlas": "schaefer100",
+      "sha256": "49f7fa5960baca9b291557499a125eb242f3dd17001cc41e5d345d69d3f30c86",
+      "source_commit": "4227ee660f216387df4310088dde026d1278dd8e",
+      "source_url": "https://raw.githubusercontent.com/MICA-MNI/micapipe/4227ee660f216387df4310088dde026d1278dd8e/parcellations/rh.schaefer-100_mics.annot"
+    },
+    {
+      "file": "lh.schaefer-200_mics.annot",
+      "atlas": "schaefer200",
+      "sha256": "6c2d0e6e85841f9031f4193a9ceaca34023857c9aaf68538801d78b1ec367b5f",
+      "source_commit": "4227ee660f216387df4310088dde026d1278dd8e",
+      "source_url": "https://raw.githubusercontent.com/MICA-MNI/micapipe/4227ee660f216387df4310088dde026d1278dd8e/parcellations/lh.schaefer-200_mics.annot"
+    },
+    {
+      "file": "rh.schaefer-200_mics.annot",
+      "atlas": "schaefer200",
+      "sha256": "19641a1d2b3001c6159383e27aad72d5af62f6fafd0d78ef11d2af3efd143a74",
+      "source_commit": "4227ee660f216387df4310088dde026d1278dd8e",
+      "source_url": "https://raw.githubusercontent.com/MICA-MNI/micapipe/4227ee660f216387df4310088dde026d1278dd8e/parcellations/rh.schaefer-200_mics.annot"
+    },
+    {
+      "file": "lh.schaefer-300_mics.annot",
+      "atlas": "schaefer300",
+      "sha256": "b19954ab28d67d2327cc433899c3dda60b61453bec6fc47f125959ad25bfbaee",
+      "source_commit": "4227ee660f216387df4310088dde026d1278dd8e",
+      "source_url": "https://raw.githubusercontent.com/MICA-MNI/micapipe/4227ee660f216387df4310088dde026d1278dd8e/parcellations/lh.schaefer-300_mics.annot"
+    },
+    {
+      "file": "rh.schaefer-300_mics.annot",
+      "atlas": "schaefer300",
+      "sha256": "4601733fd8e2ba74af09ee6c83f716511172ba1315107fa66189be590044c6eb",
+      "source_commit": "4227ee660f216387df4310088dde026d1278dd8e",
+      "source_url": "https://raw.githubusercontent.com/MICA-MNI/micapipe/4227ee660f216387df4310088dde026d1278dd8e/parcellations/rh.schaefer-300_mics.annot"
+    },
+    {
+      "file": "lh.schaefer-400_mics.annot",
+      "atlas": "schaefer400",
+      "sha256": "48dcdc0c63df9feddb34eb631ef3571dfbd73360709a3aa799e05e1bc7d9e2b5",
+      "source_commit": "4227ee660f216387df4310088dde026d1278dd8e",
+      "source_url": "https://raw.githubusercontent.com/MICA-MNI/micapipe/4227ee660f216387df4310088dde026d1278dd8e/parcellations/lh.schaefer-400_mics.annot"
+    },
+    {
+      "file": "rh.schaefer-400_mics.annot",
+      "atlas": "schaefer400",
+      "sha256": "1c24e9c5e2e35df05ddb8b82c60ea4ebbbbe48986bc11aa24a58ede47742f5aa",
+      "source_commit": "4227ee660f216387df4310088dde026d1278dd8e",
+      "source_url": "https://raw.githubusercontent.com/MICA-MNI/micapipe/4227ee660f216387df4310088dde026d1278dd8e/parcellations/rh.schaefer-400_mics.annot"
+    },
+    {
+      "file": "lh.schaefer-500_mics.annot",
+      "atlas": "schaefer500",
+      "sha256": "d68c13855c88717d726773a8de60c9c210d85166bf1dc46edd5c13ed1c9162ce",
+      "source_commit": "4227ee660f216387df4310088dde026d1278dd8e",
+      "source_url": "https://raw.githubusercontent.com/MICA-MNI/micapipe/4227ee660f216387df4310088dde026d1278dd8e/parcellations/lh.schaefer-500_mics.annot"
+    },
+    {
+      "file": "rh.schaefer-500_mics.annot",
+      "atlas": "schaefer500",
+      "sha256": "c8ea6003a9b95e25158f259a8feb38b85a7a2ff1e913252c9a63e2ed786cba6f",
+      "source_commit": "4227ee660f216387df4310088dde026d1278dd8e",
+      "source_url": "https://raw.githubusercontent.com/MICA-MNI/micapipe/4227ee660f216387df4310088dde026d1278dd8e/parcellations/rh.schaefer-500_mics.annot"
+    },
+    {
+      "file": "lh.schaefer-600_mics.annot",
+      "atlas": "schaefer600",
+      "sha256": "4b9774b0dc01a2c5d69b56650229ce607ef4a2ae4c485bb6ff8f2bfd6a329f99",
+      "source_commit": "4227ee660f216387df4310088dde026d1278dd8e",
+      "source_url": "https://raw.githubusercontent.com/MICA-MNI/micapipe/4227ee660f216387df4310088dde026d1278dd8e/parcellations/lh.schaefer-600_mics.annot"
+    },
+    {
+      "file": "rh.schaefer-600_mics.annot",
+      "atlas": "schaefer600",
+      "sha256": "5d74a0ed86251d37da5e347392b66c0c05a8d318e1ca839fd4bb299779052978",
+      "source_commit": "4227ee660f216387df4310088dde026d1278dd8e",
+      "source_url": "https://raw.githubusercontent.com/MICA-MNI/micapipe/4227ee660f216387df4310088dde026d1278dd8e/parcellations/rh.schaefer-600_mics.annot"
+    },
+    {
+      "file": "lh.schaefer-700_mics.annot",
+      "atlas": "schaefer700",
+      "sha256": "e75ceb048775c14f4a31f73830969f858ff48a4c4151b1f1f79c24c7dfdc76c6",
+      "source_commit": "4227ee660f216387df4310088dde026d1278dd8e",
+      "source_url": "https://raw.githubusercontent.com/MICA-MNI/micapipe/4227ee660f216387df4310088dde026d1278dd8e/parcellations/lh.schaefer-700_mics.annot"
+    },
+    {
+      "file": "rh.schaefer-700_mics.annot",
+      "atlas": "schaefer700",
+      "sha256": "7000731e2f8ef37b314aaba05c6e0ed187219dd211e82f146e0d0148a00ecdf0",
+      "source_commit": "4227ee660f216387df4310088dde026d1278dd8e",
+      "source_url": "https://raw.githubusercontent.com/MICA-MNI/micapipe/4227ee660f216387df4310088dde026d1278dd8e/parcellations/rh.schaefer-700_mics.annot"
+    },
+    {
+      "file": "lh.schaefer-800_mics.annot",
+      "atlas": "schaefer800",
+      "sha256": "f1511dfbff0f7af3ce5f3dbb93cb7396d7bbf7535212101da338e401b6d3b280",
+      "source_commit": "4227ee660f216387df4310088dde026d1278dd8e",
+      "source_url": "https://raw.githubusercontent.com/MICA-MNI/micapipe/4227ee660f216387df4310088dde026d1278dd8e/parcellations/lh.schaefer-800_mics.annot"
+    },
+    {
+      "file": "rh.schaefer-800_mics.annot",
+      "atlas": "schaefer800",
+      "sha256": "afd1a4f81c2032c8ea77ec47ece62f014071f208cec0cee25e5c3f162f4b1202",
+      "source_commit": "4227ee660f216387df4310088dde026d1278dd8e",
+      "source_url": "https://raw.githubusercontent.com/MICA-MNI/micapipe/4227ee660f216387df4310088dde026d1278dd8e/parcellations/rh.schaefer-800_mics.annot"
+    },
+    {
+      "file": "lh.schaefer-900_mics.annot",
+      "atlas": "schaefer900",
+      "sha256": "36aae2eec2719b9a4d746e8c49213e92dfa59a0d4c081c4daa7b9e5b2ae085c7",
+      "source_commit": "4227ee660f216387df4310088dde026d1278dd8e",
+      "source_url": "https://raw.githubusercontent.com/MICA-MNI/micapipe/4227ee660f216387df4310088dde026d1278dd8e/parcellations/lh.schaefer-900_mics.annot"
+    },
+    {
+      "file": "rh.schaefer-900_mics.annot",
+      "atlas": "schaefer900",
+      "sha256": "97a6839313ae8eb978ac51114e4363d0689e16b98b218ae9053ca5b483cc3e3e",
+      "source_commit": "4227ee660f216387df4310088dde026d1278dd8e",
+      "source_url": "https://raw.githubusercontent.com/MICA-MNI/micapipe/4227ee660f216387df4310088dde026d1278dd8e/parcellations/rh.schaefer-900_mics.annot"
+    },
+    {
+      "file": "lh.schaefer-1000_mics.annot",
+      "atlas": "schaefer1000",
+      "sha256": "637fa1275bb9c9f9cbf245699ee45445e83a9f2a6b43229f239fafbd984a05db",
+      "source_commit": "4227ee660f216387df4310088dde026d1278dd8e",
+      "source_url": "https://raw.githubusercontent.com/MICA-MNI/micapipe/4227ee660f216387df4310088dde026d1278dd8e/parcellations/lh.schaefer-1000_mics.annot"
+    },
+    {
+      "file": "rh.schaefer-1000_mics.annot",
+      "atlas": "schaefer1000",
+      "sha256": "9e4aa19a1b4f9514d8c1385c607652124007ebc48c9cdf5aff4f2cba407db44e",
+      "source_commit": "4227ee660f216387df4310088dde026d1278dd8e",
+      "source_url": "https://raw.githubusercontent.com/MICA-MNI/micapipe/4227ee660f216387df4310088dde026d1278dd8e/parcellations/rh.schaefer-1000_mics.annot"
+    }
+  ]
+}

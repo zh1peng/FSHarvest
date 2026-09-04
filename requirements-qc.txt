@@ -1,0 +1,4 @@
+matplotlib>=3.5
+nibabel>=4.0
+numpy>=1.21
+pillow>=8.0

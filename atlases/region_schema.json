@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "algorithm": "sha256 of sorted UTF-8 region names, joined with LF and terminated by LF",
+  "sources": {
+    "builtin_atlases": "FreeSurfer v7.4.1 distribution/FreeSurferColorLUT.txt, excluding unknown/medial-wall entries not emitted by cortical stats",
+    "external_atlases": "Color-table names embedded in the annotation files pinned by manifest.json, after AtlasSpec exclusions"
+  },
+  "atlases": {
+    "dk68": {
+      "lh": "9dc480a8885f55278246ac5a2ed5bae71b185e65e03a502e67854960b7b70235",
+      "rh": "9dc480a8885f55278246ac5a2ed5bae71b185e65e03a502e67854960b7b70235"
+    },
+    "destrieux": {
+      "lh": "f6ee98638d66c2f3aea4fc3d710e84028e4adeb612313fedc288810140e1853f",
+      "rh": "f6ee98638d66c2f3aea4fc3d710e84028e4adeb612313fedc288810140e1853f"
+    },
+    "dk308": {
+      "lh": "8fe0a433f2092f32c78a972ab5e1d564bd8b57171f19df9ec5ac6608fda7a41f",
+      "rh": "8449f00d1bf09c0d147553a224979311b56f955e590aa758a3cb2ebad4aef4e0"
+    },
+    "schaefer100": {
+      "lh": "35c0eac1e7e8b0623cdc66743c44ca84c98e13fc865cabf08c730ca0edac859f",
+      "rh": "2afc1328e3a4125870f1aec1b0a607b924c026350ff56ba4d162fde30e79c534"
+    },
+    "schaefer200": {
+      "lh": "32612662c8ffcd7eb8222dd333689b1d27450003a4ecb6eb361dc83339c3724c",
+      "rh": "33f33d7271f19969ceca2affc451a3de74aeb9929edfd97cf2dc8837914fada7"
+    },
+    "schaefer300": {
+      "lh": "cad34ca95bb08bad579207672f046880ccfce91c485531864dd45886aa99f9ed",
+      "rh": "a3aa120c3cb2e8b97bd1a5e448734f785801491f132ae7a67ae960d53b3c8c5c"
+    },
+    "schaefer400": {
+      "lh": "7556f82e3140e5b8fedc844526f1eed6fdfdef53adbd67a9fc124218869f2ae8",
+      "rh": "e1f598632bbfa3d86d7f48971c42f60ab3e0680aa902f5991536dd375b0341b3"
+    },
+    "schaefer500": {
+      "lh": "0ce8b0ec477f2fc338dd7b46ac7998d80b66385586a5a9607299df25b1bd16a3",
+      "rh": "19a4e8961bcec98f4a95e77db10fcf79813dd45428b4438bd0a933d4c2786001"
+    },
+    "schaefer600": {
+      "lh": "c49c2decf8e7cc372ae71ecd416a5dbe081bde0242cf20adaa11c12b84d5bc4b",
+      "rh": "dfa3b613fef87553d4a03ca0556b4492344c6c12b405cda7ad37bdaed1e82c89"
+    },
+    "schaefer700": {
+      "lh": "e838c0466d193f03a6231c555f78b10a4f0e8e2200eaf09a0fd073ed70c46b1e",
+      "rh": "9f1dbe8955e05e71765e810bef1872c4836d4fe9ea1201967ef1ce9b62df8d08"
+    },
+    "schaefer800": {
+      "lh": "8d3f9684201b8de83bb3f44b09fe4d488d5c689d1e9281c545d1393452aff132",
+      "rh": "7eaba95f56b04e5dc89a57c6d79fbbde59aabfa5c368c79fd924817a797a96ee"
+    },
+    "schaefer900": {
+      "lh": "a3972093b1a48e3d91b32ce715345bae4942348c9f2506e85272c45852161ba4",
+      "rh": "ce66f29265da3a060ad05ea814df198a45a39340c75a9038316f91e28c494754"
+    },
+    "schaefer1000": {
+      "lh": "f79455e289815e75463d13cc237357e8fe349a1cf72cb6e4d1c1849188103986",
+      "rh": "a47e7fe78afd602c3bab39e085b613c085013ad366ea52ed86bb5d32b75cc176"
+    },
+    "glasser360": {
+      "lh": "488d74d514d8aea07a8eb3bb024593dd4caf05dfb2cba561d05a1ac5317fcf99",
+      "rh": "488d74d514d8aea07a8eb3bb024593dd4caf05dfb2cba561d05a1ac5317fcf99"
+    },
+    "economo": {
+      "lh": "c562ecce0934dd9919b4051c70da4af6a348d4dcde146deaf222e95e3ff19a47",
+      "rh": "c562ecce0934dd9919b4051c70da4af6a348d4dcde146deaf222e95e3ff19a47"
+    },
+    "vosdewael300": {
+      "lh": "5ac0350aac1a6de817a93108e93b71e4af2480ea04eab61d9710907e1c5fe307",
+      "rh": "5ac0350aac1a6de817a93108e93b71e4af2480ea04eab61d9710907e1c5fe307"
+    }
+  }
+}

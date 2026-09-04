@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-qc.txt coverage ruff mypy
+      - name: Unit and CLI integration tests
+        run: coverage run --branch -m unittest discover -s tests -v
+      - name: Coverage threshold
+        run: coverage report --fail-under=70
+      - name: Ruff
+        run: ruff check .
+      - name: Mypy
+        run: mypy fs_extract_all.py fs_render_qc.py
+      - name: CLI metadata
+        run: |
+          python fs_extract_all.py --version
+          python fs_extract_all.py --help >/dev/null
+
+  shell:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Bash syntax
+        run: bash -n fsharvest install.sh run_extract.sh submit_slurm.sh download_atlases.sh slurm/extract.sbatch
+      - name: Install ShellCheck
+        run: sudo apt-get update && sudo apt-get install --yes shellcheck
+      - name: ShellCheck
+        run: shellcheck fsharvest install.sh run_extract.sh submit_slurm.sh download_atlases.sh slurm/extract.sbatch
