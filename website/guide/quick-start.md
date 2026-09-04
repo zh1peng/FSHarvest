@@ -1,8 +1,8 @@
 # 五分钟快速开始
 
-## 1. 准备目录
+## 1. 准备输入和输出目录
 
-确认输入目录的下一层是 FreeSurfer 受试者目录，并准备一个位于输入目录之外的新输出位置。
+确认输入目录的下一层是 FreeSurfer 受试者结果目录，并选择一个位于输入目录之外的输出位置。
 
 ```bash
 export SUBJECTS_ROOT=/data/study/freesurfer
@@ -10,7 +10,7 @@ export HARVEST_OUTPUT=/data/derived/fsharvest
 export FREESURFER_HOME=/usr/local/freesurfer/7.4.1
 ```
 
-## 2. 先做小规模冒烟测试
+## 2. 先用 10 位受试者试运行
 
 ```bash
 fsharvest "$SUBJECTS_ROOT" "$HARVEST_OUTPUT" \
@@ -18,42 +18,75 @@ fsharvest "$SUBJECTS_ROOT" "$HARVEST_OUTPUT" \
   --limit 10
 ```
 
-不指定 `--atlases` 时只运行 DK68。命令返回 0 表示本次选择的所有受试者均通过完整性检查。
+未指定 `--atlases` 时只提取 DK68。命令返回 0 表示本次选择的所有受试者均通过检查。
 
-## 3. 查看结果
+## 3. 查看终端结果
+
+为了同时展示分区提取和 QC，这次试运行在上面的命令后增加了
+`--atlases dk68 schaefer100 --qc-plots --qc-atlases dk68 schaefer100`。以下文本来自
+`linux212` 上的真实单受试者运行；受试者名称和输出路径已替换：
+
+```text
+Discovered 1 subjects; jobs=1; FreeSurfer=freesurfer-linux-ubuntu22_x86_64-7.4.1-20230614-7eb8460
+[1/1] example-01: OK
+[QC 1/1] example-01: 2 PNGs
+Finished: 1 OK, 0 non-OK. Output: /data/derived/fsharvest-example
+```
+
+终端中的 `OK` 只说明程序规定的文件和数值检查已经通过，不能替代 Freeview 质控。
+
+## 4. 检查 `subjects.tsv`
 
 ```bash
 column -t -s $'\t' "$HARVEST_OUTPUT/subjects.tsv" | less -S
-head "$HARVEST_OUTPUT/cortical_long.tsv"
 ```
 
-重点检查 `subjects.tsv` 的状态和错误信息。失败或部分完成的受试者会保留在
-`per_subject/` 中，修复问题后可直接重跑。
+真实输出中最常用的状态列如下：
 
-## 4. 运行完整队列
+```text
+subject_id  status  fs_version  eTIV_mm3          cortical_rows  aseg_rows  qc_status
+example-01  OK      7.2.0       1717075.390657    168            45         OK
+```
+
+这里的 `168` 行来自 DK68（68 个区域）和 Schaefer100（100 个区域）。只提取默认 DK68 时，
+完整受试者应有 68 行皮层结果。
+
+状态含义固定为：
+
+- `OK`：本次选择的指标均通过检查；
+- `PARTIAL`：生成了部分结果，但至少一项检查失败；
+- `FAILED`：没有生成可用的核心结果；
+- `NOT_RUN`：本次运行没有完成该受试者。
+
+出现 `PARTIAL` 或 `FAILED` 时，先查看 `per_subject/FOLDER_ID/extract.log` 和
+`status.json`。在确认原因前，不要直接使用队列宽表。
+
+## 5. 运行完整队列
+
+确认试运行结果后移除 `--limit`：
 
 ```bash
 fsharvest "$SUBJECTS_ROOT" "$HARVEST_OUTPUT" --jobs 12
 ```
 
-有效缓存会被自动复用。`PARTIAL`、`FAILED` 或缓存内容损坏的受试者会重新处理。
+通过检查的缓存会自动复用。状态异常或缓存内容损坏的受试者会重新处理。
 
-## 常用变化
+## 常用命令
 
 ```bash
-# 嵌套搜索受试者目录
+# 递归查找嵌套的受试者目录
 fsharvest INPUT OUTPUT --recursive
 
-# 加入多个 Atlas
+# 同时提取多个脑区分区
 fsharvest INPUT OUTPUT --jobs 12 \
   --atlases dk68 destrieux schaefer400 glasser360
 
-# 同时输出 DK68 与 Schaefer100 的四视图 QC
+# 生成 DK68 与 Schaefer100 的四视图 QC
 fsharvest INPUT OUTPUT --jobs 8 \
   --atlases dk68 schaefer100 \
   --qc-plots --qc-atlases dk68 schaefer100
 ```
 
-::: tip 从小到大
-先用 `--limit 10` 验证目录结构、FreeSurfer 版本与磁盘空间，再启动完整队列，通常比直接提交大任务更容易定位问题。
+::: tip 先确认环境，再扩大范围
+建议先用 `--limit 10` 检查目录、FreeSurfer 版本、结果表和磁盘空间，再处理完整队列。
 :::

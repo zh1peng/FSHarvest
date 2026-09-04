@@ -118,6 +118,19 @@
   box-shadow: none;
 }
 
+.vp-doc img[src*="/examples/"] {
+  display: block;
+  width: 100%;
+  margin: 1.25rem 0 1.75rem;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 12px;
+  box-shadow: 0 12px 30px rgba(6, 27, 53, 0.1);
+}
+
+.dark .vp-doc img[src*="/examples/"] {
+  box-shadow: none;
+}
+
 .vp-doc .custom-block {
   margin: 1.5rem 0;
   border-radius: 12px;

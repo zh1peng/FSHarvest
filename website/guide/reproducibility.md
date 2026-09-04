@@ -1,40 +1,49 @@
-# 缓存、审计与复现
+# 缓存与运行记录
 
-## 缓存何时可复用
+## 缓存何时可以复用
 
-外部投影与统计只有在以下信息仍匹配时才会复用：
+只有输入文件、所用分区、FreeSurfer 环境、运行参数和已有输出均未改变时，程序才会复用缓存。
+复用前还会重新检查 TSV 的字段结构、区域名称、数值和 SHA-256 校验值。
 
-- 源文件、Atlas 资产和区域 schema；
-- FreeSurfer 运行时与模板；
-- 运行选项和成功状态；
-- TSV schema、语义检查和输出 checksum。
+检查范围包括：
 
-`PARTIAL`、`FAILED` 或损坏的缓存不会被当作成功结果。
+- 输入 FreeSurfer 文件；
+- 分区文件和区域名称清单；
+- FreeSurfer 版本及模板；
+- 本次选择的分区和运行参数；
+- 缓存格式版本、生成缓存的工具版本、上次状态及输出文件校验值。
 
-## 强制重算
+较旧工具不会自动复用由较新工具生成的缓存。状态为 `PARTIAL`、`FAILED` 或内容损坏的缓存
+也不会作为成功结果使用。
+
+## 强制重新计算
 
 ```bash
 fsharvest INPUT OUTPUT --jobs 8 --overwrite
 ```
 
-`--overwrite` 会忽略私有输出缓存和可复用的 subject-level annotation，重新完成投影与统计。
-缺少受控 FSHarvest provenance 的 subject-level `.stats` 默认不会被复用。
-它绝不授权覆盖 FreeSurfer 输入目录中已经存在的冲突文件。
+`--overwrite` 会忽略输出目录中的缓存，也不会复用受试者目录中已有的外部分区标注。
+程序将重新投影分区并计算统计量。缺少受控 FSHarvest 来源记录的受试者 `.stats` 文件默认
+不会被复用。该选项仍不会覆盖原始 FreeSurfer 目录中内容不同的文件。
 
-## 运行来源
+## 运行记录包含什么
 
 `run_metadata.json` 记录：
 
-- 唯一 `run_id` 与开始/结束时间；
-- 输入、输出根目录和命令选项；
-- Atlas、区域集合与源文件 SHA-256；
-- FreeSurfer 运行时和模板指纹；
-- FSHarvest 版本与运行状态。
+- 唯一 `run_id` 与开始、结束时间；
+- 输入和输出根目录；
+- 本次选择的参数和脑区分区；
+- 分区文件、区域名称清单和程序源码的 SHA-256；
+- 执行提取时使用的 FreeSurfer 版本和模板指纹；
+- 工具版本、缓存格式版本和输出字段版本。
 
-## FreeSurfer 版本
+逐受试者 `status.json` 还会记录输入指纹、是否复用缓存、输出文件校验值和失败原因。
 
-`fs_version` 描述产生重建的 FreeSurfer 版本；运行元数据另行记录执行提取时使用的 FreeSurfer。
-不要在没有记录和建模版本效应的情况下混用不同版本重建。
+## 区分两个 FreeSurfer 版本
 
-当前真实数据基线覆盖 FreeSurfer 7.4.1 运行时与 7.2.0 重建。其他版本应先在代表性受试者上验证；
-FreeSurfer 8.x 目前不在已验证范围内。
+`fs_version` 表示生成原始重建结果时使用的 FreeSurfer 版本；
+`runtime_freesurfer_version` 表示 FSHarvest 提取时调用的版本。分析中混用不同重建版本时，
+应记录并评估版本效应。
+
+目前已使用 FreeSurfer 7.4.1 执行提取，并在由 FreeSurfer 7.2.0 生成的重建结果上完成实际
+数据测试。其他版本应先在少量代表性受试者上验证；FreeSurfer 8.x 尚未测试。

@@ -4,10 +4,11 @@
 
 - Linux
 - Python 3.9 或更高版本
-- 已授权并可用的 FreeSurfer
-- 重新下载 Atlas 时需要 `curl`
+- 已安装 FreeSurfer，并完成许可证配置
+- 重新下载脑区分区文件时需要 `curl`
 
-核心提取没有第三方 Python 包依赖。只有绘制表面 QC 时需要 NumPy、Nibabel、Matplotlib 和 Pillow。
+核心表格提取不依赖第三方 Python 包。只有生成表面 QC 图片时需要 NumPy、Nibabel、
+Matplotlib 和 Pillow。
 
 ## 安装为用户命令
 
@@ -19,7 +20,7 @@ export PATH="$HOME/.local/bin:$PATH"
 ```
 
 默认安装到 `~/.local/lib/fsharvest/VERSION/`，复制与自检完成后原子切换 `current`
-链接，并在 `~/.local/bin/fsharvest` 创建入口。不同版本不会相互合并。
+链接，并在 `~/.local/bin/fsharvest` 创建启动命令。不同版本不会相互合并。
 安装后的命令不依赖源码检出目录。
 
 可以把其他前缀作为第一个参数：
@@ -47,7 +48,7 @@ bash /path/to/FSHarvest/fsharvest --help
 python3 -m pip install -r requirements-qc.txt
 ```
 
-## 检查安装
+## 确认安装结果
 
 下面两个命令不需要初始化 FreeSurfer：
 
@@ -56,11 +57,12 @@ fsharvest --version
 fsharvest --help
 ```
 
-真正提取前，设置运行时：
+正式提取前，初始化 FreeSurfer：
 
 ```bash
 export FREESURFER_HOME=/usr/local/freesurfer/7.4.1
 source "$FREESURFER_HOME/SetUpFreeSurfer.sh"
 ```
 
-也可以在命令中使用 `--freesurfer-home /path/to/freesurfer`。
+也可以直接传入 `--freesurfer-home /path/to/freesurfer`。程序会在启动时确认
+`recon-all`、`mri_surf2surf` 和 `mris_anatomical_stats` 是否可用。
