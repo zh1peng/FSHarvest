@@ -1,5 +1,15 @@
 # FSHarvest
 
+<p align="center">
+  <img src="assets/fsharvest-logo.png" alt="FSHarvest" width="420">
+</p>
+
+<p align="center">
+  <a href="https://zh1peng.github.io/FSHarvest/">中文文档</a> ·
+  <a href="https://zh1peng.github.io/FSHarvest/en/">English</a> ·
+  <a href="VALIDATION.md">验证记录</a>
+</p>
+
 **Harvest complete, analysis-ready features from a directory of FreeSurfer subjects.**
 
 FSHarvest is a standalone Linux command-line tool. It takes one directory containing FreeSurfer subject output folders and extracts, in parallel:

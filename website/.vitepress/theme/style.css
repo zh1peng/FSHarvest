@@ -1,0 +1,145 @@
+:root {
+  --vp-c-brand-1: #087f5b;
+  --vp-c-brand-2: #05a66f;
+  --vp-c-brand-3: #13c983;
+  --vp-c-brand-soft: rgba(5, 166, 111, 0.13);
+  --vp-c-tip-1: #087f5b;
+  --vp-c-tip-2: #05a66f;
+  --vp-c-tip-3: #13c983;
+  --vp-c-tip-soft: rgba(5, 166, 111, 0.12);
+  --vp-button-brand-border: #087f5b;
+  --vp-button-brand-bg: #087f5b;
+  --vp-button-brand-hover-border: #05a66f;
+  --vp-button-brand-hover-bg: #05a66f;
+  --vp-layout-max-width: 1520px;
+  --vp-font-family-base: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", "Noto Sans SC", "Microsoft YaHei", "PingFang SC", sans-serif;
+  --vp-font-family-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+
+.dark {
+  --vp-c-brand-1: #35e7a0;
+  --vp-c-brand-2: #16cfa0;
+  --vp-c-brand-3: #21bdda;
+  --vp-c-brand-soft: rgba(53, 231, 160, 0.16);
+  --vp-c-tip-1: #35e7a0;
+  --vp-c-tip-2: #16cfa0;
+  --vp-c-tip-3: #21bdda;
+  --vp-c-tip-soft: rgba(53, 231, 160, 0.14);
+}
+
+.VPNavBar {
+  background: color-mix(in srgb, var(--vp-c-bg) 92%, transparent) !important;
+  backdrop-filter: blur(12px);
+}
+
+.VPNavBarTitle .logo {
+  width: 38px;
+  height: 38px;
+  object-fit: contain;
+}
+
+.VPNavBarTitle .title {
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.VPDoc .container {
+  max-width: 1480px !important;
+}
+
+.VPDoc:not(.has-sidebar) .content {
+  max-width: 980px;
+}
+
+.VPDoc.has-aside .content-container {
+  max-width: 880px !important;
+}
+
+.vp-doc {
+  color: var(--vp-c-text-1);
+  font-size: 16px;
+  line-height: 1.82;
+}
+
+.vp-doc .fsharvest-doc-logo {
+  display: block;
+  width: 300px;
+  max-height: none;
+  margin: 0 0 1.6rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.vp-doc h1 {
+  max-width: 23ch;
+  font-size: clamp(2.15rem, 4vw, 3.35rem);
+  line-height: 1.12;
+  letter-spacing: -0.035em;
+}
+
+.vp-doc h2 {
+  margin-top: 3rem;
+  padding-top: 1.5rem;
+  border-top-color: var(--vp-c-divider);
+}
+
+.vp-doc h3 {
+  margin-top: 2rem;
+}
+
+.vp-doc p,
+.vp-doc li {
+  text-wrap: pretty;
+}
+
+.vp-doc a {
+  text-underline-offset: 3px;
+}
+
+.vp-doc table {
+  display: table;
+  width: 100%;
+}
+
+.vp-doc code {
+  color: var(--vp-c-brand-1);
+}
+
+.vp-doc div[class*="language-"] {
+  margin-top: 1.25rem;
+  margin-bottom: 1.5rem;
+  border: 1px solid var(--vp-c-divider);
+  box-shadow: 0 12px 30px rgba(6, 27, 53, 0.07);
+}
+
+.dark .vp-doc div[class*="language-"] {
+  box-shadow: none;
+}
+
+.vp-doc .custom-block {
+  margin: 1.5rem 0;
+  border-radius: 12px;
+}
+
+.harvest-path {
+  padding: 1.2rem 1.35rem;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 14px;
+  background: linear-gradient(135deg, var(--vp-c-brand-soft), transparent 58%);
+  font-family: var(--vp-font-family-mono);
+  font-size: 0.95rem;
+  line-height: 1.8;
+  overflow-x: auto;
+}
+
+@media (max-width: 560px) {
+  .vp-doc {
+    font-size: 15.5px;
+  }
+
+  .vp-doc .fsharvest-doc-logo {
+    width: 240px;
+  }
+}
