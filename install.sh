@@ -29,5 +29,6 @@ ln -sfn "${INSTALL_ROOT}/fsharvest" "${BIN_DIR}/fsharvest"
 printf 'Installed: %s\n' "${BIN_DIR}/fsharvest"
 printf 'Package files: %s\n' "${INSTALL_ROOT}"
 if [[ ":${PATH}:" != *":${BIN_DIR}:"* ]]; then
+  # shellcheck disable=SC2016
   printf 'Add this directory to PATH:\n  export PATH="%s:$PATH"\n' "${BIN_DIR}"
 fi
