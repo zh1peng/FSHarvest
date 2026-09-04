@@ -42,11 +42,11 @@ if [[ ${NEED_SETUP} -eq 1 ]]; then
   fi
   # SetUpFreeSurfer.sh requires FREESURFER_HOME to be exported before sourcing.
   export FREESURFER_HOME
-  # shellcheck disable=SC1091
   # Some FreeSurfer releases contain benign commands that return non-zero and
   # reference optional unset variables while initializing the environment.
   set +e
   set +u
+  # shellcheck source=/dev/null
   source "${FREESURFER_HOME}/SetUpFreeSurfer.sh" >/dev/null
   set -e
   set -u
