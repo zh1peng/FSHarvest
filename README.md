@@ -116,11 +116,71 @@ Schaefer 100/200/300/400/500/600/700/800/900/1000 use Yeo 7-network names. All t
 
 `glasser360`, `economo`, and `vosdewael300` are also pinned micapipe `fsaverage5` annotations. Glasser360 is the 360-area HCP-MMP1.0 multimodal atlas; Economo is the 86-region MRI implementation of the von Economo-Koskinas cytoarchitectonic atlas; Vos de Wael 300 is an anatomical 300-region subdivision constrained by Desikan-Killiany boundaries and is not an alias for Schaefer300 or DK308.
 
-There are two deliberately separate extraction paths:
+### How cortical statistics are generated
 
-1. **FreeSurfer built-ins:** `dk68` reads `stats/{lh,rh}.aparc.stats`; `destrieux` reads `stats/{lh,rh}.aparc.a2009s.stats`. QC reads their existing files under `label/`. FSHarvest does not project, copy, rebuild, or save a second subject-level annotation for either atlas.
-2. **External atlases:** `mri_surf2surf --sval-annot` maps the bundled `fsaverage` or `fsaverage5` annotation to the subject using `sphere.reg`, following the CBIG project-to-individual workflow. `mris_anatomical_stats` then calculates parcel statistics on native white/pial/thickness surfaces. Generated annotations and stats are kept under `OUTPUT/per_subject/`; they are copied into the input reconstruction only when `--export-to-freesurfer` is explicitly selected.
-3. For both paths, background/medial-wall rows are excluded where applicable. Expected parcel totals and pinned region-name sets are validated independently for every subject, atlas, and hemisphere.
+There are two deliberately separate extraction paths.
+
+**FreeSurfer built-ins.** DK68 reads the existing
+`stats/{lh,rh}.aparc.stats`, and Destrieux reads
+`stats/{lh,rh}.aparc.a2009s.stats`. Their annotations and statistics were
+already generated in the subject's native surface space by `recon-all`.
+FSHarvest therefore does not project or recalculate them; QC reads the
+corresponding existing files under `label/`.
+
+**External atlases.** Each bundled annotation is defined on its declared
+`fsaverage` or `fsaverage5` source template. For every subject and hemisphere,
+FSHarvest first transfers the parcel labels through the template-to-subject
+spherical registration:
+
+```text
+mri_surf2surf --hemi HEMI \
+  --srcsubject SOURCE_TEMPLATE --trgsubject SUBJECT \
+  --sval-annot SOURCE.annot \
+  --tval OUTPUT/per_subject/SUBJECT/label/HEMI.ATLAS.annot
+```
+
+This maps labels to vertices of the subject's native surface using
+`sphere.reg`; it does not rerun reconstruction or project morphometric values
+from the template. FSHarvest then calculates the nine regional measures from
+that native-space annotation and the subject's own cortex mask and
+white/pial/thickness surfaces:
+
+```text
+mris_anatomical_stats -th3 -mgz \
+  -cortex SUBJECT/label/HEMI.cortex.label \
+  -f OUTPUT/per_subject/SUBJECT/stats/HEMI.ATLAS.stats \
+  -b -a OUTPUT/per_subject/SUBJECT/label/HEMI.ATLAS.annot \
+  SUBJECT HEMI white
+```
+
+The resulting annotation and `.stats` files remain under
+`OUTPUT/per_subject/`. They are copied into the input reconstruction only when
+`--export-to-freesurfer` is explicitly selected. For both extraction paths,
+background/medial-wall rows are excluded where applicable, and expected parcel
+totals and pinned region-name sets are validated independently for every
+subject, atlas, and hemisphere.
+
+### Why built-in and external atlas measures can be compared
+
+We validated the difference between reading native FreeSurfer statistics and
+freshly calculating statistics from the same subject annotation. Across 10
+subjects, both hemispheres, DK68 and Destrieux, all nine cortical measures were
+identical at the precision serialized by FreeSurfer: 19,440/19,440 scalar
+comparisons matched exactly, with maximum absolute and relative errors of zero.
+The native files were produced by FreeSurfer 7.2.0 and the independent
+recalculation used FreeSurfer 7.4.1. See [`VALIDATION.md`](VALIDATION.md) and the
+reproducible harness
+[`validation/validate_builtin_recompute.py`](validation/validate_builtin_recompute.py).
+
+This result shows that, in the validated environment, directly reading the
+built-in `.stats` files does not introduce a statistics-calculation difference
+relative to the recalculation path used after external-atlas projection. The
+nine measures can therefore be analysed consistently across multiple atlases.
+It does **not** mean that parcels from different atlases are anatomically
+equivalent or have a one-to-one correspondence, and it does not by itself
+validate the preceding `mri_surf2surf` projection. Cross-atlas regional
+comparisons still require an explicit anatomical correspondence or an
+atlas-level analysis design.
 
 No MNI-volume atlas, smoothing, `mri_aparc2aseg`, or re-running of `recon-all` is involved.
 

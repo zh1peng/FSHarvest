@@ -1,6 +1,41 @@
 # Validation report — FSHarvest 1.0.0rc1
 
-Date: 2026-09-04
+Date: 2026-09-05
+
+## Built-in atlas read-versus-recompute equivalence
+
+The reproducible harness is `validation/validate_builtin_recompute.py` (SHA-256
+`d272e1f4acf5b7b433c58645fbd475a4b41a06608f3c4d1e141006f8bf35e6cb`). It compares
+FSHarvest's built-in-atlas path, which reads the existing `aparc.stats` and
+`aparc.a2009s.stats`, with a fresh invocation of the same recomputation command used for
+external atlases:
+
+```text
+mris_anatomical_stats -th3 -mgz -cortex HEMI.cortex.label \
+  -f RECOMPUTED.stats -b -a SUBJECT_ANNOT SUBJECT HEMI white
+```
+
+On `linux212`, the first 10 lexically sorted complete CHCP_FS72 reconstructions were tested
+for DK68 and Destrieux in both hemispheres. The native statistics were created by
+FreeSurfer 7.2.0; the fresh statistics were created by FreeSurfer 7.4.1. Region-name sets
+matched for every subject, atlas, and hemisphere. The comparison covered all nine
+FSHarvest cortical measures:
+`numvert`, `surfarea`, `grayvol`, `thickavg`, `thickstd`, `meancurv`, `gauscurv`,
+`foldind`, and `curvind`.
+
+| Atlas | Regional rows | Scalar comparisons | Exact matches | Max absolute error | Max relative error |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| DK68 | 680 | 6,120 | 6,120 | 0 | 0 |
+| Destrieux | 1,480 | 13,320 | 13,320 | 0 | 0 |
+| **Total** | **2,160** | **19,440** | **19,440** | **0** | **0** |
+
+All comparisons therefore also passed `atol=1e-12` and `rtol=1e-12`. This establishes
+exact agreement at the precision serialized by FreeSurfer's statistics files, which is the
+precision observable and consumed by FSHarvest. It does not claim equality of unrounded
+in-memory intermediates. Because the subject's existing annotation was supplied directly,
+this isolates the statistics-calculation path; atlas projection by `mri_surf2surf` remains a
+separate validation question. All recomputed statistics and logs were written outside the
+source reconstructions.
 
 ## 2026-09-05 round-two safety verification
 

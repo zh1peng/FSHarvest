@@ -4,6 +4,7 @@ All notable changes to FSHarvest are recorded here. The project follows semantic
 
 ## Unreleased
 
+- Add a reproducible DK68/Destrieux native-versus-recomputed statistics validation harness and record exact agreement across 19,440 real-data comparisons.
 - Preserve pre-existing output files by cleaning only uniquely named, run-owned work directories, and reject input/output nesting in either direction.
 - Track FSHarvest-created exports by relative path and SHA-256 so identical full reruns reuse cache while changed destinations remain conflict-protected.
 - Record checksums for current wide tables and archive a preceding run's no-longer-selected atlas tables instead of leaving them in `wide/`.
