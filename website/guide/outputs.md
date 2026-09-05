@@ -18,6 +18,7 @@ OUTPUT/
 ├── wide/
 │   ├── dk68.tsv
 │   └── schaefer100.tsv
+├── archive/RUN_ID/wide/          # 上一次运行中已取消选择的宽表
 └── per_subject/example-01/
     ├── label/
     ├── stats/
@@ -30,7 +31,8 @@ OUTPUT/
     └── status.json
 ```
 
-运行过程中使用的 `work/` 目录和符号链接会在正常退出、失败或中断后清理，不属于最终输出。
+选择外部分区时，程序会创建名称唯一的 `.fsharvest-work-*` 临时目录。该目录及其中的符号链接
+会在正常退出、失败或中断后清理。程序不会删除输出目录中原本存在的 `work/` 或其他目录。
 
 ## 队列级文件
 
@@ -50,13 +52,19 @@ OUTPUT/
 为了便于阅读，下例只显示部分列：
 
 ```text
-subject_id  atlas  hemisphere  region                      numvert  surfarea  grayvol  thickavg
-example-01  dk68   lh          bankssts                    1283     864       1975     2.501
-example-01  dk68   lh          caudalanteriorcingulate     1332     858       2481     2.694
-example-01  dk68   lh          caudalmiddlefrontal         3908     2495      7550     2.750
+folder_id   subject_id  atlas  hemisphere  region                      numvert  surfarea  grayvol  thickavg
+example-01  example-01  dk68   lh          bankssts                    1283     864       1975     2.501
+example-01  example-01  dk68   lh          caudalanteriorcingulate     1332     858       2481     2.694
+example-01  example-01  dk68   lh          caudalmiddlefrontal         3908     2495      7550     2.750
 ```
 
-合并区域级结果时，请使用 `atlas`、`hemisphere` 和 `region` 三个字段，不要依赖行顺序。
+`folder_id` 是输入受试者目录名，程序要求它在一次运行中唯一；`subject_id` 来自 FreeSurfer
+统计文件头，可能在不同目录或多次扫描之间重复。
+
+合并两张受试者级脑区结果表时，请使用 `folder_id`、`atlas`、`hemisphere` 和 `region`
+共同匹配，并检查这些字段在每张表中是否唯一。只有合并不含受试者维度的脑区说明表时，
+才使用 `atlas`、`hemisphere` 和 `region`。存在多次扫描时，应使用能够唯一标识该次扫描的
+`folder_id`，不能只用参与者编号。
 
 ## 宽表列名示例
 
@@ -78,12 +86,20 @@ global__eTIV
 
 ## 如何判断结果是否进入汇总表
 
+输出目录中的 `subjects.tsv`、长表、宽表、分区清单和运行记录始终表示**本次命令**选择的
+受试者和分区，并不是对历史结果的自动追加。完整队列之后在同一输出目录执行 `--limit 10`，
+会把这些汇总文件改写为本次十位受试者的结果；逐受试者缓存仍可保留并在后续复用。
+
 当前版本使用严格汇总：只有本次运行状态为 `OK`，且表格和外部分区文件重新检查通过的受试者，
 才会进入队列级长表和宽表。状态为 `PARTIAL`、`FAILED` 或 `NOT_RUN` 的受试者仍保留
 逐受试者文件，但不会进入本次队列汇总。
 
 `subjects.tsv` 目前记录受试者整体状态，没有单独的受试者 × 分区状态表。如果多分区运行失败，
 请结合 `errors`、逐受试者 `status.json` 和 `extract.log` 定位具体分区及半球。
+
+如果本次减少了所选分区，程序会核对上一次运行记录中的 SHA-256，然后把不再选择的宽表从
+`wide/` 移到 `archive/PREVIOUS_RUN_ID/wide/`。内容被修改或缺少生成记录的旧表不会被自动移动；
+程序会停止并要求人工移出该文件，避免把来源不明的表误当作当前结果。
 
 ::: info 多分区会产生很宽的表
 程序逐个受试者写入汇总表，不会把整个队列矩阵同时放入内存；但选择多个高分辨率分区时，

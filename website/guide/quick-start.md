@@ -22,14 +22,12 @@ fsharvest "$SUBJECTS_ROOT" "$HARVEST_OUTPUT" \
 
 ## 3. 查看终端结果
 
-为了同时展示分区提取和 QC，这次试运行在上面的命令后增加了
-`--atlases dk68 schaefer100 --qc-plots --qc-atlases dk68 schaefer100`。以下文本来自
-`linux212` 上的真实单受试者运行；受试者名称和输出路径已替换：
+以下文本来自 `linux212` 上一次只提取默认 DK68 的真实单受试者运行；受试者名称和输出路径
+已替换：
 
 ```text
 Discovered 1 subjects; jobs=1; FreeSurfer=freesurfer-linux-ubuntu22_x86_64-7.4.1-20230614-7eb8460
 [1/1] example-01: OK
-[QC 1/1] example-01: 2 PNGs
 Finished: 1 OK, 0 non-OK. Output: /data/derived/fsharvest-example
 ```
 
@@ -44,12 +42,12 @@ column -t -s $'\t' "$HARVEST_OUTPUT/subjects.tsv" | less -S
 真实输出中最常用的状态列如下：
 
 ```text
-subject_id  status  fs_version  eTIV_mm3          cortical_rows  aseg_rows  qc_status
-example-01  OK      7.2.0       1717075.390657    168            45         OK
+folder_id   subject_id  status  fs_version  eTIV_mm3          cortical_rows  aseg_rows
+example-01  example-01  OK      7.2.0       1717075.390657    68             45
 ```
 
-这里的 `168` 行来自 DK68（68 个区域）和 Schaefer100（100 个区域）。只提取默认 DK68 时，
-完整受试者应有 68 行皮层结果。
+只提取默认 DK68 时，完整受试者应有 68 行皮层结果。`folder_id` 是输入目录名；
+`subject_id` 来自 FreeSurfer 统计文件头，两者不一定相同。
 
 状态含义固定为：
 
@@ -70,6 +68,9 @@ fsharvest "$SUBJECTS_ROOT" "$HARVEST_OUTPUT" --jobs 12
 ```
 
 通过检查的缓存会自动复用。状态异常或缓存内容损坏的受试者会重新处理。
+
+队列汇总表始终按本次命令重写，并不会自动追加历史运行。这里的试运行与正式运行都使用
+默认 DK68；如果改变 `--atlases`，汇总表的列和分区清单也会相应改变。
 
 ## 常用命令
 

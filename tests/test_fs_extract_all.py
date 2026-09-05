@@ -469,11 +469,13 @@ region_b 11 21 31 2.6 0.2 0.3 0.4 5.0 6.0
             common = (subject, output, atlas_dir, ("schaefer100",))
             with patch.object(MODULE, "ensure_link", lambda *_args: None), patch.object(MODULE, "run_command", fake_run):
                 first = MODULE.extract_subject(
-                    *common, "atlas-a", {name: "a" for name in names}, root, "FS-7", "template", False
+                    *common, "atlas-a", {name: "a" for name in names}, root, "FS-7", "template", False,
+                    work_subjects=root / "work",
                 )
                 first_call_count = len(calls)
                 second = MODULE.extract_subject(
-                    *common, "atlas-b", {name: "b" for name in names}, root, "FS-7", "template", False
+                    *common, "atlas-b", {name: "b" for name in names}, root, "FS-7", "template", False,
+                    work_subjects=root / "work",
                 )
             self.assertEqual(first["status"], "OK")
             self.assertEqual(second["status"], "OK")
@@ -516,10 +518,10 @@ region_b 11 21 31 2.6 0.2 0.3 0.4 5.0 6.0
             with patch.object(MODULE, "ensure_link", lambda *_args: None), patch.object(
                 MODULE, "run_command", fake_run
             ):
-                first = MODULE.extract_subject(*args)
+                first = MODULE.extract_subject(*args, work_subjects=root / "work")
                 annotation = output / "per_subject" / "sub-01" / "label" / "lh.schaefer100.annot"
                 annotation.write_bytes(b"corrupt")
-                second = MODULE.extract_subject(*args)
+                second = MODULE.extract_subject(*args, work_subjects=root / "work")
 
             self.assertEqual(first["status"], "OK")
             self.assertEqual(second["status"], "OK")
@@ -584,6 +586,7 @@ region_b 11 21 31 2.6 0.2 0.3 0.4 5.0 6.0
                     "FS-7",
                     "template",
                     False,
+                    work_subjects=root / "work",
             )
 
             subject_out = output / "per_subject" / "sub-01"
@@ -641,6 +644,7 @@ region_b 11 21 31 2.6 0.2 0.3 0.4 5.0 6.0
                 result = MODULE.extract_subject(
                     subject, output, atlas_dir, ("schaefer100",), "atlas", checksums,
                     root, "FS-7", "template", True,
+                    work_subjects=root / "work",
                 )
             self.assertEqual(result["status"], "OK")
             self.assertEqual(len(calls), 4)
@@ -696,14 +700,14 @@ region_b 11 21 31 2.6 0.2 0.3 0.4 5.0 6.0
             with patch.object(MODULE, "ensure_link", lambda *_args: None), patch.object(
                 MODULE, "run_command", fake_run
             ), patch.object(MODULE, "TOOL_VERSION", "1.2.0"):
-                first = MODULE.extract_subject(*args)
+                first = MODULE.extract_subject(*args, work_subjects=root / "work")
             subject_out = output / "per_subject" / "sub-01"
             (subject_out / "label").rename(subject_out / "annotations")
 
             with patch.object(MODULE, "ensure_link", lambda *_args: None), patch.object(
                 MODULE, "run_command", fake_run
             ):
-                second = MODULE.extract_subject(*args)
+                second = MODULE.extract_subject(*args, work_subjects=root / "work")
 
             self.assertEqual(first["tool_version"], "1.2.0")
             self.assertEqual(second["tool_version"], MODULE.TOOL_VERSION)
@@ -745,7 +749,7 @@ region_b 11 21 31 2.6 0.2 0.3 0.4 5.0 6.0
             with patch.object(MODULE, "ensure_link", lambda *_args: None), patch.object(
                 MODULE, "run_command", fake_run
             ), patch.object(MODULE, "TOOL_VERSION", "1.0.0rc0"):
-                MODULE.extract_subject(*args)
+                MODULE.extract_subject(*args, work_subjects=root / "work")
 
             subject_out = output / "per_subject" / "sub-01"
             for hemi in MODULE.HEMISPHERES:
@@ -757,7 +761,7 @@ region_b 11 21 31 2.6 0.2 0.3 0.4 5.0 6.0
             with patch.object(MODULE, "ensure_link", lambda *_args: None), patch.object(
                 MODULE, "run_command", fake_run
             ):
-                result = MODULE.extract_subject(*args)
+                result = MODULE.extract_subject(*args, work_subjects=root / "work")
 
             self.assertEqual(result["status"], "OK")
             self.assertEqual(result["cache_hit"], 0)
@@ -791,10 +795,17 @@ region_b 11 21 31 2.6 0.2 0.3 0.4 5.0 6.0
             first = MODULE.export_subject_artifacts(
                 subject, subject_out, ("dk68", "schaefer100")
             )
+            migrated = MODULE.managed_exports_from_status(
+                subject, subject_out, {"exported_paths": first["exported_paths"]}
+            )
             second = MODULE.export_subject_artifacts(
-                subject, subject_out, ("dk68", "schaefer100")
+                subject,
+                subject_out,
+                ("dk68", "schaefer100"),
+                managed_exports=migrated,
             )
             self.assertEqual(first["exported_files"], 4)
+            self.assertEqual(len(migrated), 4)
             self.assertEqual(second["exported_files"], 0)
             self.assertEqual(second["existing_export_files"], 4)
 
@@ -804,6 +815,109 @@ region_b 11 21 31 2.6 0.2 0.3 0.4 5.0 6.0
             self.assertEqual(
                 (subject / "label" / "lh.schaefer100.annot").read_bytes(), b"conflict"
             )
+
+    def test_repeated_full_export_reuses_cache_and_detects_later_conflict(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            subjects = root / "subjects"
+            subject = subjects / "sub-01"
+            output = root / "output"
+            fs_home = root / "freesurfer"
+            atlas_dir = MODULE_PATH.parent / "atlases"
+            write_cortical(
+                subject / "stats" / "lh.aparc.stats", 34, regions=DK68_REGIONS
+            )
+            write_cortical(
+                subject / "stats" / "rh.aparc.stats", 34, regions=DK68_REGIONS
+            )
+            write_valid_aseg(subject / "stats" / "aseg.stats")
+            (subject / "scripts").mkdir()
+            (subject / "scripts" / "recon-all.done").touch()
+            (subject / "label").mkdir()
+            (subject / "surf").mkdir()
+            for hemi in MODULE.HEMISPHERES:
+                (subject / "label" / f"{hemi}.cortex.label").write_bytes(b"cortex")
+                for name in ("sphere.reg", "white", "pial", "thickness"):
+                    (subject / "surf" / f"{hemi}.{name}").write_bytes(b"surface")
+                template_surf = fs_home / "subjects" / "fsaverage5" / "surf"
+                template_surf.mkdir(parents=True, exist_ok=True)
+                (template_surf / f"{hemi}.sphere.reg").write_bytes(b"template")
+
+            calls: list[list[str]] = []
+
+            def fake_run(command, _env, _log):
+                calls.append(command)
+                if command[0] == "mri_surf2surf":
+                    source = Path(command[command.index("--sval-annot") + 1])
+                    target = Path(command[command.index("--tval") + 1])
+                    MODULE.atomic_copy_file(source, target)
+                    return
+                annotation = Path(command[command.index("-a") + 1])
+                spec = MODULE.ATLAS_SPECS["schaefer100"]
+                regions = [
+                    name
+                    for name in MODULE.annotation_region_names(annotation)
+                    if name not in spec.excluded_regions
+                ]
+                write_cortical(
+                    Path(command[command.index("-f") + 1]),
+                    50,
+                    annotation_name=annotation.name,
+                    regions=regions,
+                )
+
+            argv = [
+                str(subjects),
+                str(output),
+                "--freesurfer-home",
+                str(fs_home),
+                "--atlas-dir",
+                str(atlas_dir),
+                "--atlases",
+                "dk68",
+                "schaefer100",
+                "--export-to-freesurfer",
+                "--jobs",
+                "1",
+            ]
+            patches = (
+                patch.object(MODULE.shutil, "which", return_value="/fake/tool"),
+                patch.object(MODULE, "command_version", return_value="FS-7"),
+                patch.object(MODULE, "read_surface_vertex_count", return_value=10242),
+                patch.object(MODULE, "ensure_link", lambda *_args: None),
+                patch.object(MODULE, "run_command", fake_run),
+            )
+            with patches[0], patches[1], patches[2], patches[3], patches[4]:
+                self.assertEqual(MODULE.main(argv), 0)
+                first_call_count = len(calls)
+                self.assertEqual(MODULE.main(argv), 0)
+                second_call_count = len(calls)
+                second_status = json.loads(
+                    (output / "per_subject" / "sub-01" / "status.json").read_text(
+                        encoding="utf-8"
+                    )
+                )
+
+                exported_annotation = subject / "label" / "lh.schaefer100.annot"
+                exported_annotation.write_bytes(exported_annotation.read_bytes() + b"conflict")
+                conflicting_bytes = exported_annotation.read_bytes()
+                self.assertEqual(MODULE.main(argv), 2)
+                third_call_count = len(calls)
+
+            status = json.loads(
+                (output / "per_subject" / "sub-01" / "status.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual(first_call_count, 4)
+            self.assertEqual(second_call_count, 4)
+            self.assertEqual(third_call_count, 4)
+            self.assertEqual(second_status["cache_hit"], 1)
+            self.assertEqual(len(second_status["managed_exports"]), 4)
+            self.assertEqual(status["export_status"], "FAILED")
+            self.assertIn("Refusing to replace", status["export_errors"])
+            self.assertEqual(exported_annotation.read_bytes(), conflicting_bytes)
+            self.assertFalse(any(output.glob(".fsharvest-work-*")))
 
     def test_export_rejects_empty_annotation(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -899,6 +1013,7 @@ region_b 11 21 31 2.6 0.2 0.3 0.4 5.0 6.0
                     "FS-7",
                     "template",
                     False,
+                    work_subjects=root / "work",
             )
 
             self.assertEqual(result["status"], "OK")
@@ -930,6 +1045,114 @@ region_b 11 21 31 2.6 0.2 0.3 0.4 5.0 6.0
             run_metadata = json.loads((output / "run_metadata.json").read_text(encoding="utf-8"))
             self.assertIn("finished_at_utc", run_metadata)
             self.assertTrue((output / "all_qc.html").is_file())
+
+    def test_changed_run_scope_rewrites_current_tables_and_archives_stale_wide(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            subjects = root / "subjects"
+            fs_home = root / "freesurfer"
+            output = root / "output"
+            fs_home.mkdir()
+            for index in range(3):
+                subject = subjects / f"sub-{index + 1:02d}"
+                write_cortical(
+                    subject / "stats" / "lh.aparc.stats", 34, regions=DK68_REGIONS
+                )
+                write_cortical(
+                    subject / "stats" / "rh.aparc.stats", 34, regions=DK68_REGIONS
+                )
+                write_cortical(subject / "stats" / "lh.aparc.a2009s.stats", 74)
+                write_cortical(subject / "stats" / "rh.aparc.a2009s.stats", 74)
+                write_valid_aseg(subject / "stats" / "aseg.stats")
+                (subject / "scripts").mkdir()
+                (subject / "scripts" / "recon-all.done").touch()
+
+            common = [
+                str(subjects),
+                str(output),
+                "--freesurfer-home",
+                str(fs_home),
+                "--jobs",
+                "1",
+            ]
+            with patch.object(MODULE.shutil, "which", return_value="/fake/tool"), patch.object(
+                MODULE, "command_version", return_value="FS-7"
+            ), patch.object(
+                MODULE, "load_region_schema", return_value={}
+            ):
+                self.assertEqual(
+                    MODULE.main([*common, "--atlases", "dk68", "destrieux"]), 0
+                )
+                self.assertEqual(len(MODULE.read_tsv(output / "subjects.tsv")), 3)
+                self.assertTrue((output / "wide" / "destrieux.tsv").is_file())
+                first_cortical = MODULE.read_tsv(output / "cortical_long.tsv")
+                subject_keys = {
+                    (row["folder_id"], row["atlas"], row["hemisphere"], row["region"])
+                    for row in first_cortical
+                }
+                region_keys = {
+                    (row["atlas"], row["hemisphere"], row["region"])
+                    for row in first_cortical
+                }
+                self.assertEqual(len(subject_keys), len(first_cortical))
+                self.assertLess(len(region_keys), len(first_cortical))
+
+                two_subject_rows = [
+                    row
+                    for row in first_cortical
+                    if row["folder_id"] in {"sub-01", "sub-02"}
+                    and row["atlas"] == "dk68"
+                    and row["hemisphere"] == "lh"
+                    and row["region"] == "bankssts"
+                ]
+                self.assertEqual(len(two_subject_rows), 2)
+                compound_join = [
+                    (left, right)
+                    for left in two_subject_rows
+                    for right in two_subject_rows
+                    if all(
+                        left[key] == right[key]
+                        for key in ("folder_id", "atlas", "hemisphere", "region")
+                    )
+                ]
+                region_only_join = [
+                    (left, right)
+                    for left in two_subject_rows
+                    for right in two_subject_rows
+                    if all(
+                        left[key] == right[key]
+                        for key in ("atlas", "hemisphere", "region")
+                    )
+                ]
+                self.assertEqual(len(compound_join), 2)
+                self.assertEqual(len(region_only_join), 4)
+
+                stale_wide = output / "wide" / "destrieux.tsv"
+                original_stale_wide = stale_wide.read_bytes()
+                stale_wide.write_bytes(original_stale_wide + b"user change\n")
+                with self.assertRaisesRegex(RuntimeError, "matching provenance"):
+                    MODULE.main([*common, "--limit", "1", "--atlases", "dk68"])
+                self.assertTrue(stale_wide.is_file())
+                stale_wide.write_bytes(original_stale_wide)
+
+                self.assertEqual(
+                    MODULE.main([*common, "--limit", "1", "--atlases", "dk68"]), 0
+                )
+
+            summaries = MODULE.read_tsv(output / "subjects.tsv")
+            cortical = MODULE.read_tsv(output / "cortical_long.tsv")
+            self.assertEqual([row["folder_id"] for row in summaries], ["sub-01"])
+            self.assertEqual({row["folder_id"] for row in cortical}, {"sub-01"})
+            compound_keys = {
+                (row["folder_id"], row["atlas"], row["hemisphere"], row["region"])
+                for row in cortical
+            }
+            self.assertEqual(len(compound_keys), len(cortical))
+            self.assertFalse((output / "wide" / "destrieux.tsv").exists())
+            metadata = json.loads((output / "run_metadata.json").read_text(encoding="utf-8"))
+            self.assertEqual(metadata["n_subjects"], 1)
+            self.assertEqual(len(metadata["archived_wide_tables"]), 1)
+            self.assertTrue((output / metadata["archived_wide_tables"][0]).is_file())
 
     def test_aggregate_rejects_output_changed_after_extraction(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -974,6 +1197,8 @@ region_b 11 21 31 2.6 0.2 0.3 0.4 5.0 6.0
             fs_home = root / "freesurfer"
             output = root / "output"
             fs_home.mkdir()
+            (output / "work").mkdir(parents=True)
+            (output / "work" / "user_notes.txt").write_text("keep", encoding="utf-8")
             write_cortical(subject / "stats" / "lh.aparc.stats", 34, regions=DK68_REGIONS)
             write_cortical(subject / "stats" / "rh.aparc.stats", 34, regions=DK68_REGIONS)
             write_valid_aseg(subject / "stats" / "aseg.stats")
@@ -990,10 +1215,15 @@ region_b 11 21 31 2.6 0.2 0.3 0.4 5.0 6.0
             )
             self.assertEqual(status["run_id"], run_metadata["run_id"])
             self.assertEqual(status["status"], "OK")
-            self.assertFalse((output / "work").exists())
+            self.assertEqual(
+                (output / "work" / "user_notes.txt").read_text(encoding="utf-8"), "keep"
+            )
+            self.assertFalse(any(output.glob(".fsharvest-work-*")))
             self.assertFalse((output / ".fsharvest.lock").exists())
 
             failed_output = root / "failed-output"
+            (failed_output / "work").mkdir(parents=True)
+            (failed_output / "work" / "user_notes.txt").write_text("keep", encoding="utf-8")
             failed_argv = [
                 str(subjects), str(failed_output), "--freesurfer-home", str(fs_home), "--jobs", "1"
             ]
@@ -1008,8 +1238,62 @@ region_b 11 21 31 2.6 0.2 0.3 0.4 5.0 6.0
             )
             self.assertEqual(failed_status["status"], "FAILED")
             self.assertIn("boom", failed_status["errors"])
-            self.assertFalse((failed_output / "work").exists())
+            self.assertEqual(
+                (failed_output / "work" / "user_notes.txt").read_text(encoding="utf-8"), "keep"
+            )
             self.assertFalse((failed_output / ".fsharvest.lock").exists())
+
+    def test_cleanup_removes_only_the_owned_work_directory(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / "output"
+            existing = output / "work" / "user_notes.txt"
+            existing.parent.mkdir(parents=True)
+            existing.write_text("keep", encoding="utf-8")
+            resources = MODULE.RunResources()
+            resources.acquire(output, False)
+            owned = resources.create_work_dir()
+            (owned / "temporary.txt").write_text("remove", encoding="utf-8")
+            resources.cleanup()
+            self.assertEqual(existing.read_text(encoding="utf-8"), "keep")
+            self.assertFalse(owned.exists())
+            self.assertFalse((output / ".fsharvest.lock").exists())
+
+    def test_keyboard_interrupt_preserves_preexisting_work(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            subjects = root / "subjects"
+            subject = subjects / "sub-01"
+            output = root / "output"
+            fs_home = root / "freesurfer"
+            fs_home.mkdir()
+            write_valid_aseg(subject / "stats" / "aseg.stats")
+            existing = output / "work" / "user_notes.txt"
+            existing.parent.mkdir(parents=True)
+            existing.write_text("keep", encoding="utf-8")
+            argv = [str(subjects), str(output), "--freesurfer-home", str(fs_home)]
+            with patch.object(MODULE.shutil, "which", return_value="/fake/tool"), patch.object(
+                MODULE, "command_version", return_value="FS-7"
+            ), patch.object(MODULE, "extract_subject", side_effect=KeyboardInterrupt):
+                with self.assertRaises(KeyboardInterrupt):
+                    MODULE.main(argv)
+            self.assertEqual(existing.read_text(encoding="utf-8"), "keep")
+            self.assertFalse((output / ".fsharvest.lock").exists())
+
+    def test_output_cannot_contain_input(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / "project"
+            subjects = output / "work" / "freesurfer"
+            subject = subjects / "sub-01"
+            fs_home = Path(tmp) / "freesurfer-home"
+            fs_home.mkdir()
+            write_valid_aseg(subject / "stats" / "aseg.stats")
+            with patch.object(MODULE.shutil, "which", return_value="/fake/tool"):
+                with self.assertRaisesRegex(ValueError, "must not contain one another"):
+                    MODULE.main(
+                        [str(subjects), str(output), "--freesurfer-home", str(fs_home)]
+                    )
+            self.assertTrue((subject / "stats" / "aseg.stats").is_file())
+            self.assertFalse((output / ".fsharvest.lock").exists())
 
     def test_output_lock_rejects_concurrent_writer(self):
         with tempfile.TemporaryDirectory() as tmp:

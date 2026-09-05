@@ -6,7 +6,10 @@
 ## 1. 先对少量受试者生成图片
 
 ```bash
-fsharvest INPUT OUTPUT \
+export SUBJECTS_ROOT=/data/study/freesurfer
+export OUTPUT_QC_TEST=/data/derived/fsharvest-qc-test
+
+fsharvest "$SUBJECTS_ROOT" "$OUTPUT_QC_TEST" \
   --jobs 4 \
   --limit 10 \
   --atlases dk68 schaefer100 \
@@ -15,6 +18,9 @@ fsharvest INPUT OUTPUT \
   --qc-surface inflated \
   --qc-dpi 100
 ```
+
+这里使用独立的 `OUTPUT_QC_TEST`，不要指向已经生成完整队列汇总表的正式输出目录。
+FSHarvest 会按本次十位受试者重新生成 `subjects.tsv`、长表和宽表；`--limit 10` 不是只追加图片。
 
 每位受试者正常完成后，终端会显示生成的 PNG 数量：
 
@@ -25,7 +31,7 @@ fsharvest INPUT OUTPUT \
 ## 2. 打开队列页面
 
 ```bash
-xdg-open OUTPUT/all_qc.html
+xdg-open "$OUTPUT_QC_TEST/all_qc.html"
 ```
 
 在页面中切换不同脑区分区，并使用受试者 ID 搜索。先浏览多数受试者，了解本队列中
@@ -36,10 +42,10 @@ xdg-open OUTPUT/all_qc.html
 ## 3. 查看异常受试者的图片和日志
 
 ```text
-OUTPUT/per_subject/FOLDER_ID/qc/ATLAS_inflated_4view.png
-OUTPUT/per_subject/FOLDER_ID/qc/ATLAS_inflated_4view.png.json
-OUTPUT/per_subject/FOLDER_ID/extract.log
-OUTPUT/per_subject/FOLDER_ID/status.json
+$OUTPUT_QC_TEST/per_subject/FOLDER_ID/qc/ATLAS_inflated_4view.png
+$OUTPUT_QC_TEST/per_subject/FOLDER_ID/qc/ATLAS_inflated_4view.png.json
+$OUTPUT_QC_TEST/per_subject/FOLDER_ID/extract.log
+$OUTPUT_QC_TEST/per_subject/FOLDER_ID/status.json
 ```
 
 PNG 的 `.json` 文件记录输入表面、分区标注、DPI 和 run ID。它可以帮助确认图片是否对应

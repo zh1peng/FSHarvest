@@ -77,6 +77,7 @@ fsharvest /data/study/freesurfer \
 - eTIV 等全局指标：`global_measures_long.tsv`。
 
 ::: tip 合并区域级结果
-请使用 `atlas`、`hemisphere` 和 `region` 三个字段，不要使用行号，也不要假设不同分区
-具有相同排序。
+合并受试者级脑区结果时，请使用 `folder_id`、`atlas`、`hemisphere` 和 `region` 共同匹配，
+并确认组合键在两张表中都唯一。只有不含受试者维度的脑区说明表才省略 `folder_id`。
+不要使用行号，也不要假设不同分区具有相同排序。
 :::

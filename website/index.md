@@ -16,11 +16,12 @@ FSHarvest 默认不会修改原始 FreeSurfer 结果。外部分区生成的 `.a
 均保存在输出目录中。只有显式使用 `--export-to-freesurfer` 时，程序才会把通过检查的文件
 复制到受试者目录；已有的不同文件不会被覆盖。
 
-## 快速开始
+## 安装后运行
+
+先按照[安装说明](/guide/installation)获取仓库、安装命令并设置 `PATH`。安装完成后运行：
 
 ```bash
 export FREESURFER_HOME=/usr/local/freesurfer/7.4.1
-bash install.sh
 fsharvest /path/to/subjects /path/to/output --jobs 12
 ```
 

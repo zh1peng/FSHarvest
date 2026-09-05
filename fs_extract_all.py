@@ -2,7 +2,7 @@
 """Generic, dependency-free extraction of FreeSurfer regional statistics.
 
 Input FreeSurfer outputs are read-only by default. External annotations are
-projected to a private working SUBJECTS_DIR under the output directory. The
+projected through a unique, run-owned SUBJECTS_DIR that is removed on exit. The
 explicit ``--export-to-freesurfer`` option can copy validated external atlas
 artifacts back to each subject's standard ``label/`` and ``stats/`` folders.
 """
@@ -369,6 +369,7 @@ class RunResources:
     def __init__(self) -> None:
         self.output_dir: Optional[Path] = None
         self.lock_path: Optional[Path] = None
+        self.work_dir: Optional[Path] = None
         self.lock_id = uuid.uuid4().hex
 
     def acquire(self, output_dir: Path, force_unlock: bool) -> None:
@@ -406,12 +407,29 @@ class RunResources:
                     handle.write("\n")
                 return
 
+    def create_work_dir(self) -> Path:
+        if self.output_dir is None or self.lock_path is None:
+            raise RuntimeError("Output lock must be acquired before creating a work directory.")
+        if self.work_dir is None:
+            self.work_dir = Path(
+                tempfile.mkdtemp(prefix=".fsharvest-work-", dir=self.output_dir)
+            )
+            atomic_write_text(
+                self.work_dir / ".owner.json",
+                json.dumps({"lock_id": self.lock_id}, indent=2) + "\n",
+            )
+        return self.work_dir
+
     def cleanup(self) -> None:
         try:
-            if self.output_dir is not None:
-                work_dir = self.output_dir / "work"
-                if work_dir.is_dir():
-                    shutil.rmtree(work_dir)
+            if self.work_dir is not None and not self.work_dir.is_symlink():
+                marker = self.work_dir / ".owner.json"
+                try:
+                    metadata = json.loads(marker.read_text(encoding="utf-8"))
+                except (OSError, json.JSONDecodeError):
+                    metadata = {}
+                if metadata.get("lock_id") == self.lock_id and self.work_dir.is_dir():
+                    shutil.rmtree(self.work_dir)
         finally:
             if self.lock_path is not None and self.lock_path.is_file():
                 try:
@@ -476,6 +494,36 @@ def file_state(path: Path) -> dict[str, Any]:
     return result
 
 
+def managed_export_key(subject_dir: Path, path: Path) -> Optional[str]:
+    try:
+        return path.resolve().relative_to(subject_dir.resolve()).as_posix()
+    except ValueError:
+        return None
+
+
+def validated_managed_exports(
+    subject_dir: Path, value: Any
+) -> dict[str, dict[str, Any]]:
+    """Return FSHarvest export records whose destination still matches exactly."""
+    if not isinstance(value, dict):
+        return {}
+    validated: dict[str, dict[str, Any]] = {}
+    for relative, expected in value.items():
+        if not isinstance(relative, str) or not isinstance(expected, dict):
+            continue
+        relative_path = Path(relative)
+        if relative_path.is_absolute() or ".." in relative_path.parts:
+            continue
+        destination = subject_dir / relative_path
+        key = managed_export_key(subject_dir, destination)
+        if key != relative or not destination.is_file():
+            continue
+        actual = file_integrity(destination)
+        if actual == expected:
+            validated[key] = actual
+    return validated
+
+
 def subject_external_artifact_candidates(
     subject_dir: Path,
     spec: AtlasSpec,
@@ -499,6 +547,7 @@ def reusable_subject_artifacts(
     atlas: str,
     hemi: str,
     expected_region_sha256: Optional[str] = None,
+    managed_exports: Optional[dict[str, dict[str, Any]]] = None,
 ) -> tuple[Optional[Path], Optional[Path]]:
     try:
         surface_vertex_count = read_surface_vertex_count(subject_dir / "surf" / f"{hemi}.white")
@@ -510,6 +559,8 @@ def reusable_subject_artifacts(
             continue
         seen.add(annotation)
         if not annotation.is_file():
+            continue
+        if managed_export_key(subject_dir, annotation) in (managed_exports or {}):
             continue
         if not validate_annotation_file(
             annotation,
@@ -746,11 +797,52 @@ def files_identical(left: Path, right: Path) -> bool:
     return sha256(left) == sha256(right)
 
 
+def managed_exports_from_status(
+    subject_dir: Path, subject_out: Path, status: dict[str, Any]
+) -> dict[str, dict[str, Any]]:
+    managed: dict[str, dict[str, Any]] = {}
+    recorded = status.get("managed_exports")
+    if isinstance(recorded, dict):
+        for relative, expected in recorded.items():
+            if not isinstance(relative, str) or not isinstance(expected, dict):
+                continue
+            relative_path = Path(relative)
+            if relative_path.is_absolute() or ".." in relative_path.parts:
+                continue
+            destination = subject_dir / relative_path
+            key = managed_export_key(subject_dir, destination)
+            cached_source = subject_out / relative_path
+            if (
+                key == relative
+                and cached_source.is_file()
+                and file_integrity(cached_source) == expected
+            ):
+                # Preserve ownership even if the destination was deleted or edited.
+                # It remains excluded from scientific inputs; export validation will
+                # recreate a missing copy or reject a conflicting one.
+                managed[key] = expected
+    legacy_paths = status.get("exported_paths")
+    if not isinstance(legacy_paths, list):
+        return managed
+    for raw_path in legacy_paths:
+        if not isinstance(raw_path, str):
+            continue
+        destination = Path(raw_path)
+        key = managed_export_key(subject_dir, destination)
+        if key is None or key in managed:
+            continue
+        cached_source = subject_out / Path(key)
+        if files_identical(destination, cached_source):
+            managed[key] = file_integrity(destination)
+    return managed
+
+
 def export_subject_artifacts(
     subject_dir: Path,
     subject_out: Path,
     atlas_keys: tuple[str, ...],
     atlas_region_hashes: Optional[dict[str, str]] = None,
+    managed_exports: Optional[dict[str, dict[str, Any]]] = None,
 ) -> dict[str, Any]:
     """Export validated external atlas annotations/stats into a FreeSurfer subject.
 
@@ -793,6 +885,7 @@ def export_subject_artifacts(
             "Refusing to replace existing FreeSurfer artifacts: " + ", ".join(conflicts)
         )
 
+    current_managed = validated_managed_exports(subject_dir, managed_exports)
     exported_paths: list[str] = []
     existing_paths: list[str] = []
     for source, destination in plans:
@@ -802,6 +895,9 @@ def export_subject_artifacts(
         try:
             atomic_copy_file_no_replace(source, destination)
             exported_paths.append(str(destination))
+            key = managed_export_key(subject_dir, destination)
+            if key is not None:
+                current_managed[key] = file_integrity(destination)
         except FileExistsError:
             if files_identical(source, destination):
                 existing_paths.append(str(destination))
@@ -815,10 +911,15 @@ def export_subject_artifacts(
         "exported_paths": exported_paths,
         "existing_export_paths": existing_paths,
         "export_errors": "",
+        "managed_exports": current_managed,
     }
 
 
-def subject_input_fingerprint(subject_dir: Path, atlas_keys: tuple[str, ...]) -> str:
+def subject_input_fingerprint(
+    subject_dir: Path,
+    atlas_keys: tuple[str, ...],
+    managed_exports: Optional[dict[str, dict[str, Any]]] = None,
+) -> str:
     paths = {
         subject_dir / "stats" / "aseg.stats",
         subject_dir / "scripts" / "build-stamp.txt",
@@ -841,7 +942,13 @@ def subject_input_fingerprint(subject_dir: Path, atlas_keys: tuple[str, ...]) ->
                 )
                 for annotation, _stats in subject_external_artifact_candidates(subject_dir, spec, hemi):
                     paths.add(annotation)
-    return json_fingerprint([file_state(path) for path in sorted(paths)])
+    states = []
+    for path in sorted(paths):
+        if managed_export_key(subject_dir, path) in (managed_exports or {}):
+            states.append({"path": str(path), "missing": True})
+        else:
+            states.append(file_state(path))
+    return json_fingerprint(states)
 
 
 def external_surface_fingerprint(subject_dir: Path, hemi: str) -> str:
@@ -1311,6 +1418,7 @@ def extract_subject(
     overwrite: bool,
     atlas_region_hashes: Optional[dict[str, str]] = None,
     run_id: str = "",
+    work_subjects: Optional[Path] = None,
 ) -> dict[str, Any]:
     start = time.time()
     atlas_region_hashes = atlas_region_hashes or {}
@@ -1318,7 +1426,16 @@ def extract_subject(
     folder_id = metadata["folder_id"]
     subject_out = output_dir / "per_subject" / folder_id
     status_path = subject_out / "status.json"
-    input_fingerprint = subject_input_fingerprint(subject_dir, atlas_keys)
+    try:
+        previous_status = json.loads(status_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        previous_status = {}
+    managed_exports = managed_exports_from_status(
+        subject_dir, subject_out, previous_status
+    )
+    input_fingerprint = subject_input_fingerprint(
+        subject_dir, atlas_keys, managed_exports
+    )
     fingerprint_payload = {
         "atlas_fingerprint": atlas_fingerprint,
         "atlases": atlas_keys,
@@ -1334,10 +1451,7 @@ def extract_subject(
 
     cache_validation_errors: list[str] = []
     if status_path.is_file() and not overwrite:
-        try:
-            previous = json.loads(status_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            previous = {}
+        previous = previous_status
         if (
             previous.get("status") == "OK"
             and previous.get("fingerprint") == fingerprint
@@ -1372,11 +1486,13 @@ def extract_subject(
                 return previous
 
     subject_out.mkdir(parents=True, exist_ok=True)
-    work_subjects = output_dir / "work" / "subjects"
-    if any(ATLAS_SPECS[key].kind == "external" for key in atlas_keys):
+    has_external_atlas = any(ATLAS_SPECS[key].kind == "external" for key in atlas_keys)
+    if has_external_atlas:
+        if work_subjects is None:
+            raise RuntimeError("A managed work directory is required for external atlases.")
         ensure_link(work_subjects / folder_id, subject_dir)
     env = os.environ.copy()
-    env["SUBJECTS_DIR"] = str(work_subjects)
+    env["SUBJECTS_DIR"] = str(work_subjects or subject_dir.parent)
     env["OMP_NUM_THREADS"] = "1"
     env["ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS"] = "1"
     errors: list[str] = []
@@ -1414,6 +1530,7 @@ def extract_subject(
                                 key,
                                 hemi,
                                 atlas_region_hashes.get(f"{key}:{hemi}"),
+                                managed_exports,
                             )
                         )
                         source_kind = (
@@ -1608,6 +1725,7 @@ def extract_subject(
         "runtime_freesurfer_version": runtime_version,
         "run_id": run_id,
         "cache_hit": 0,
+        "managed_exports": managed_exports,
     }
     row_metadata = {key: metadata[key] for key in ("subject_id", "folder_id", "subject_path", "fs_version")}
     write_tsv(
@@ -1928,6 +2046,48 @@ applyFilters();
     atomic_write_text(output_dir / "all_qc.html", page)
 
 
+def stale_wide_archive_plans(
+    output_dir: Path, atlas_keys: tuple[str, ...]
+) -> list[tuple[Path, Path]]:
+    metadata_path = output_dir / "run_metadata.json"
+    if not metadata_path.is_file():
+        return []
+    try:
+        previous = json.loads(metadata_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return []
+    raw_atlases = previous.get("atlases")
+    previous_atlases = {
+        key for key in raw_atlases if key in ATLAS_SPECS
+    } if isinstance(raw_atlases, list) else set()
+    stale_atlases = sorted(previous_atlases - set(atlas_keys))
+    if not stale_atlases:
+        return []
+    recorded = previous.get("aggregate_artifacts")
+    if not isinstance(recorded, dict):
+        recorded = {}
+    previous_run_id = str(previous.get("run_id", ""))
+    if not re.fullmatch(r"[A-Za-z0-9._-]+", previous_run_id):
+        previous_run_id = json_fingerprint(previous)[:16]
+    plans = []
+    for atlas in stale_atlases:
+        relative = f"wide/{atlas}.tsv"
+        source = output_dir / relative
+        if not source.exists():
+            continue
+        expected = recorded.get(relative)
+        if not isinstance(expected, dict) or file_integrity(source) != expected:
+            raise RuntimeError(
+                f"Cannot safely archive stale wide table without matching provenance: {source}. "
+                "Move it outside the output directory and retry."
+            )
+        destination = output_dir / "archive" / previous_run_id / relative
+        if destination.exists():
+            raise FileExistsError(f"Wide-table archive destination already exists: {destination}")
+        plans.append((source, destination))
+    return plans
+
+
 def aggregate(
     output_dir: Path,
     subjects: list[Path],
@@ -1936,6 +2096,7 @@ def aggregate(
     atlas_region_hashes: Optional[dict[str, str]] = None,
 ) -> set[str]:
     atlas_region_hashes = atlas_region_hashes or {}
+    stale_wide_plans = stale_wide_archive_plans(output_dir, atlas_keys)
     summaries: list[dict[str, Any]] = []
     records: list[tuple[Path, Path, dict[str, Any]]] = []
     data_records: list[tuple[Path, Path, dict[str, Any]]] = []
@@ -2115,6 +2276,16 @@ def aggregate(
         ],
     )
     write_qc_report(output_dir, records, atlas_keys)
+    archived_wide_tables = []
+    for source, destination in stale_wide_plans:
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        source.rename(destination)
+        archived_wide_tables.append(str(destination.relative_to(output_dir)))
+    run_metadata["archived_wide_tables"] = archived_wide_tables
+    run_metadata["aggregate_artifacts"] = {
+        f"wide/{atlas}.tsv": file_integrity(output_dir / "wide" / f"{atlas}.tsv")
+        for atlas in atlas_keys
+    }
     run_metadata["finished_at_utc"] = datetime.now(timezone.utc).isoformat()
     atomic_write_text(output_dir / "run_metadata.json", json.dumps(run_metadata, indent=2) + "\n")
     return non_ok_subjects
@@ -2186,8 +2357,12 @@ def _main(argv: Optional[list[str]], resources: RunResources) -> int:
 
     subjects_root = args.subjects_dir.resolve()
     output_root = args.output_dir.resolve()
-    if output_root == subjects_root or output_root.is_relative_to(subjects_root):
-        raise ValueError("Output directory must not be the subjects directory or one of its descendants.")
+    if (
+        output_root == subjects_root
+        or output_root.is_relative_to(subjects_root)
+        or subjects_root.is_relative_to(output_root)
+    ):
+        raise ValueError("Input and output directories must not contain one another.")
 
     atlas_keys = tuple(args.atlases)
     qc_atlas_keys = tuple(args.qc_atlases or atlas_keys)
@@ -2217,11 +2392,22 @@ def _main(argv: Optional[list[str]], resources: RunResources) -> int:
     duplicate_names = sorted(name for name, count in Counter(path.name for path in subjects).items() if count > 1)
     if duplicate_names:
         raise RuntimeError("Duplicate subject folder IDs are not supported: " + ", ".join(duplicate_names))
+    subjects_inside_output = [
+        str(subject) for subject in subjects if subject.resolve().is_relative_to(output_root)
+    ]
+    if subjects_inside_output:
+        raise ValueError(
+            "Resolved subject directories must not be inside the output directory: "
+            + ", ".join(subjects_inside_output)
+        )
 
     output_root.mkdir(parents=True, exist_ok=True)
     resources.acquire(output_root, args.force_unlock)
-    work_subjects = output_root / "work" / "subjects"
+    has_external_atlas = any(ATLAS_SPECS[key].kind == "external" for key in atlas_keys)
+    work_subjects = resources.create_work_dir() / "subjects" if has_external_atlas else None
     for source_subject in {ATLAS_SPECS[key].source_subject for key in atlas_keys} - {None}:
+        if work_subjects is None:
+            raise AssertionError("External atlas source requires a managed work directory.")
         source_path = fs_home / "subjects" / str(source_subject)
         if not source_path.is_dir():
             raise FileNotFoundError(f"FreeSurfer template subject is missing: {source_path}")
@@ -2250,6 +2436,7 @@ def _main(argv: Optional[list[str]], resources: RunResources) -> int:
                 args.overwrite,
                 atlas_region_hashes,
                 run_id,
+                work_subjects,
             ): subject
             for subject in subjects
         }
@@ -2303,7 +2490,11 @@ def _main(argv: Optional[list[str]], resources: RunResources) -> int:
             else:
                 try:
                     export_result = export_subject_artifacts(
-                        subject, subject_out, atlas_keys, atlas_region_hashes
+                        subject,
+                        subject_out,
+                        atlas_keys,
+                        atlas_region_hashes,
+                        status.get("managed_exports"),
                     )
                     print(
                         f"[EXPORT {count}/{len(subjects)}] {subject.name}: "

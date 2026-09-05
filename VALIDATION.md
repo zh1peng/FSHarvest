@@ -2,6 +2,39 @@
 
 Date: 2026-09-04
 
+## 2026-09-05 round-two safety verification
+
+This verification used the current working tree based on commit
+`48a95c47877696f196647c9774a510395190f2ee`. The tested source hashes were:
+
+- `fs_extract_all.py`: `758c10264108391494e4afe7a4b52fd86c90d4fbb85000f729928c1b7cd6f8bf`
+- `tests/test_fs_extract_all.py`: `bf31eefafc1b1be38f02192cf7aa325e1b12ae67cc9db6682e7b3620125c60c7`
+
+All 45 regression tests passed locally and on `linux212`; Ruff and mypy also passed
+locally. The new checks cover pre-existing `OUTPUT/work` preservation on successful,
+failed, and interrupted runs; removal of only the uniquely owned temporary directory;
+rejection when input and output contain one another; full repeated export; changed export
+conflicts; current-run subject scope; stale wide-table archiving; and subject-aware regional
+join keys.
+
+A staged install under a fresh temporary prefix passed `install.sh --check`; invoking
+`fsharvest --version` with an otherwise clean environment and only that prefix on `PATH`
+returned `fsharvest 1.0.0rc1`.
+
+A real FreeSurfer 7.4.1 run used a writable wrapper around the first CHCP_FS72 subject with
+DK68, Schaefer100, and `--export-to-freesurfer`. The first run exported four files. The
+identical second full command reported `cache_hit=1`, `0 new, 4 existing`, and did not add
+any `mris_anatomical_stats` calls. After one exported annotation was modified, the next run
+returned exit code 2, reported the exact conflicting path, and left the modified file
+unchanged. The pre-existing `OUTPUT/work/user_notes.txt` remained intact, while all
+run-owned `.fsharvest-work-*` directories were removed.
+
+A separate real-data range test first aggregated three subjects with DK68 and Destrieux,
+then reran the same output with `--limit 1 --atlases dk68`. The current `subjects.tsv`
+contained one subject, `cortical_long.tsv` contained 68 DK68 rows, and the preceding
+Destrieux wide table moved to `archive/PREVIOUS_RUN_ID/wide/`. The pre-existing `work/`
+file again remained unchanged.
+
 ## 1.0.0rc1 remediation verification
 
 This verification used the current uncommitted remediation working tree based on commit
@@ -76,4 +109,4 @@ This validates extraction and rendering for the environment above. It is not evi
 
 ## 1.0.0rc1 regression checks
 
-The 1.0.0rc1 release candidate separates tool/cache/output versions, rejects downgrade cache reuse, validates `aseg.stats` headers, disables unproven subject-level stats reuse, locks each output directory, removes temporary subject links, and fingerprints current-run QC images. The local regression suite contains 40 tests and passes with Ruff and mypy on Python 3.12. The verification above must be repeated on the final committed source before the 1.0.0 release tag; it does not claim that an uncommitted working tree is a stable release.
+The 1.0.0rc1 release candidate separates tool/cache/output versions, rejects downgrade cache reuse, validates `aseg.stats` headers, disables unproven subject-level stats reuse, locks each output directory, removes temporary subject links, and fingerprints current-run QC images. The local regression suite contains 45 tests and passes with Ruff and mypy on Python 3.12. The verification above must be repeated on the final committed source before the 1.0.0 release tag; it does not claim that an uncommitted working tree is a stable release.

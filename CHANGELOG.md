@@ -4,6 +4,11 @@ All notable changes to FSHarvest are recorded here. The project follows semantic
 
 ## Unreleased
 
+- Preserve pre-existing output files by cleaning only uniquely named, run-owned work directories, and reject input/output nesting in either direction.
+- Track FSHarvest-created exports by relative path and SHA-256 so identical full reruns reuse cache while changed destinations remain conflict-protected.
+- Record checksums for current wide tables and archive a preceding run's no-longer-selected atlas tables instead of leaving them in `wide/`.
+- Clarify that cohort tables represent the current command scope and document subject-aware regional join keys.
+
 ## 1.0.0rc1
 
 - Release candidate; not a stable public release.
