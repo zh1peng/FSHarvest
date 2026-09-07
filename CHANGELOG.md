@@ -2,7 +2,12 @@
 
 All notable changes to FSHarvest are recorded here. The project follows semantic versioning once a release is tagged.
 
-## Unreleased
+## 1.0.1 - 2026-09-07
+
+- Derive custom region counts from assigned source labels, omit FreeSurfer-skipped labels automatically, and parse region names containing spaces without shifting metrics.
+- Accept curated atlas names and custom annotation JSON definitions through the same `--atlases` input.
+- Share projection, statistics, aggregation, export and QC across resolved atlas definitions; derive custom regional names and per-hemisphere counts from annotation color tables.
+- Check declared source-template vertex counts before subject processing and record resolved definitions in run metadata.
 
 ## 1.0.0 - 2026-09-07
 

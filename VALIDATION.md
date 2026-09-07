@@ -1,6 +1,14 @@
-# Validation report — FSHarvest 1.0.0
+# Validation report — FSHarvest
 
 Date: 2026-09-07
+
+## 1.0.1 verification
+
+The 1.0.1 source passed all 55 tests on Windows/Python 3.12, including custom annotation
+resolution, source-template mismatch, asymmetric regions, unused color-table entries,
+FreeSurfer-skipped labels, spaced region names, aggregation, cache reuse and QC rendering.
+Ruff, mypy and the VitePress documentation build passed. FreeSurfer command execution
+was substituted in integration tests; no new real-data smoke test was run for 1.0.1.
 
 ## 1.0.0 final release verification
 

@@ -25,6 +25,12 @@
 它不等同于对 `mri_surf2surf` 分区投影本身的验证。仓库中的
 `validation/validate_builtin_recompute.py` 可以重复执行完整检查。
 
+## 1.0.1 的检查结果
+
+Windows / Python 3.12 上的 55 项测试、Ruff、mypy 和文档构建通过。
+新增用例覆盖自定义分区、未使用色表条目、自动排除标签和含空格脑区名称。
+FreeSurfer 命令使用测试替身验证；本版本未新增真实数据 smoke test。
+
 ## 1.0.0 的检查结果
 
 本地回归测试共 45 项，并通过 Python 3.12、Ruff 和 mypy 检查。在 `linux212` 上还完成了：

@@ -27,18 +27,20 @@ import time
 import uuid
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, Iterator, Optional
 from urllib.parse import quote
 
 
-TOOL_VERSION = "1.0.0"
+TOOL_VERSION = "1.0.1"
 CACHE_SCHEMA_VERSION = 1
 OUTPUT_SCHEMA_VERSION = 1
 TOOL_NAME = "FSHarvest"
 HEMISPHERES = ("lh", "rh")
+# mris_anatomical_stats omits these labels even when they have assigned vertices.
+STATS_EXCLUDED_REGIONS = ("unknown", "Unknown", "corpuscallosum", "Medial_wall")
 CORTICAL_COLUMNS = (
     "numvert",
     "surfarea",
@@ -109,6 +111,21 @@ class AtlasSpec:
     source_subject: Optional[str] = None
     annot_pattern: Optional[str] = None
     excluded_regions: tuple[str, ...] = ()
+    annotations: tuple[str, ...] = ()
+    regions: tuple[tuple[str, ...], ...] = ()
+
+    def annotation_path(self, atlas_dir: Path, hemi: str) -> Path:
+        if self.annotations:
+            return Path(self.annotations[HEMISPHERES.index(hemi)])
+        return atlas_dir / str(self.annot_pattern).format(hemi=hemi)
+
+    def region_names(self, hemi: str) -> tuple[str, ...]:
+        return self.regions[HEMISPHERES.index(hemi)] if self.regions else ()
+
+    def expected_rows(self, hemi: str) -> int:
+        if self.regions:
+            return len(self.region_names(hemi))
+        return EXPECTED_HEMISPHERE_ROWS[self.key][hemi]
 
 
 ATLAS_SPECS = {
@@ -445,7 +462,10 @@ def region_set_sha256(regions: Iterable[str]) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
-def load_region_schema(atlas_dir: Path, atlas_keys: tuple[str, ...]) -> dict[str, str]:
+def load_region_schema(atlas_dir: Path, atlases: dict[str, AtlasSpec]) -> dict[str, str]:
+    curated = {key: spec for key, spec in atlases.items() if spec.kind == "builtin" or spec.annot_pattern}
+    if not curated:
+        return {}
     path = atlas_dir / "region_schema.json"
     if not path.is_file():
         raise FileNotFoundError(f"Atlas region schema is required: {path}")
@@ -453,7 +473,7 @@ def load_region_schema(atlas_dir: Path, atlas_keys: tuple[str, ...]) -> dict[str
     if document.get("schema_version") != 1 or not isinstance(document.get("atlases"), dict):
         raise RuntimeError(f"Unsupported atlas region schema: {path}")
     result: dict[str, str] = {}
-    for atlas in atlas_keys:
+    for atlas in curated:
         atlas_schema = document["atlases"].get(atlas)
         for hemi in HEMISPHERES:
             digest = atlas_schema.get(hemi) if isinstance(atlas_schema, dict) else None
@@ -605,7 +625,7 @@ def external_artifact_integrity(
     return {name: file_integrity(path) for name, path in paths.items() if path.is_file()}
 
 
-def annotation_contents(path: Path) -> tuple[int, list[str]]:
+def annotation_contents(path: Path, *, used_only: bool = False) -> tuple[int, list[str]]:
     """Read and structurally validate a FreeSurfer annotation without optional dependencies."""
     data = path.read_bytes()
     offset = 0
@@ -652,7 +672,7 @@ def annotation_contents(path: Path) -> tuple[int, list[str]]:
 
     entry_marker = read_int()
     names: list[str] = []
-    color_values: set[int] = set()
+    color_values: list[int] = []
     if entry_marker > 0:
         read_string()  # original color-table path
         entries = entry_marker
@@ -661,7 +681,7 @@ def annotation_contents(path: Path) -> tuple[int, list[str]]:
             red, green, blue, _alpha = (read_int() for _ in range(4))
             if any(channel < 0 or channel > 255 for channel in (red, green, blue)):
                 raise RuntimeError("annotation contains an invalid color-table value")
-            color_values.add(red + (green << 8) + (blue << 16))
+            color_values.append(red + (green << 8) + (blue << 16))
     elif entry_marker == -2:
         max_index = read_int()
         if max_index <= 0:
@@ -680,17 +700,19 @@ def annotation_contents(path: Path) -> tuple[int, list[str]]:
             red, green, blue, _alpha = (read_int() for _ in range(4))
             if any(channel < 0 or channel > 255 for channel in (red, green, blue)):
                 raise RuntimeError("annotation contains an invalid color-table value")
-            color_values.add(red + (green << 8) + (blue << 16))
+            color_values.append(red + (green << 8) + (blue << 16))
     else:
         raise RuntimeError(f"unsupported annotation color-table version: {-entry_marker}")
 
     if any(data[offset:]):
         raise RuntimeError("annotation contains unexpected trailing data")
-    unknown_values = annotation_values - color_values - {0}
+    unknown_values = annotation_values - set(color_values) - {0}
     if unknown_values:
         raise RuntimeError("annotation contains labels missing from its color table")
     if not names or any(not name for name in names):
         raise RuntimeError("annotation contains an empty color table")
+    if used_only:
+        names = [name for name, color in zip(names, color_values) if color in annotation_values]
     return vertex_count, names
 
 
@@ -727,10 +749,10 @@ def validate_annotation_file(
         return [f"{atlas}/{hemi}: missing annotation: {path}"]
     if path.stat().st_size == 0:
         return [f"{atlas}/{hemi}: annotation is empty: {path}"]
-    if expected_region_sha256 is None and expected_vertex_count is None:
+    if expected_region_sha256 is None and expected_vertex_count is None and not spec.regions:
         return []
     try:
-        vertex_count, names = annotation_contents(path)
+        vertex_count, names = annotation_contents(path, used_only=not bool(spec.annot_pattern))
     except (OSError, RuntimeError) as exc:
         return [f"{atlas}/{hemi}: invalid annotation {path}: {exc}"]
     if expected_vertex_count is not None and vertex_count != expected_vertex_count:
@@ -739,6 +761,8 @@ def validate_annotation_file(
             f"surface has {expected_vertex_count}"
         ]
     regions = [name for name in names if name not in spec.excluded_regions]
+    if spec.regions and set(regions) != set(spec.region_names(hemi)):
+        return [f"{atlas}/{hemi}: annotation regions do not match the atlas definition"]
     if expected_region_sha256 and region_set_sha256(regions) != expected_region_sha256:
         return [f"{atlas}/{hemi}: annotation regions do not match the pinned atlas schema"]
     return []
@@ -746,13 +770,13 @@ def validate_annotation_file(
 
 def validate_external_artifacts(
     subject_out: Path,
-    atlas_keys: tuple[str, ...],
+    atlases: dict[str, AtlasSpec],
     atlas_region_hashes: Optional[dict[str, str]] = None,
 ) -> list[str]:
     atlas_region_hashes = atlas_region_hashes or {}
     errors: list[str] = []
-    for atlas in atlas_keys:
-        spec = ATLAS_SPECS[atlas]
+    for atlas in atlases:
+        spec = atlases[atlas]
         if spec.kind != "external":
             continue
         for hemi in HEMISPHERES:
@@ -790,7 +814,7 @@ def validate_external_artifacts(
             errors.extend(
                 validate_cortical_rows(
                     rows,
-                    atlas,
+                    spec,
                     hemi,
                     atlas_region_hashes.get(f"{atlas}:{hemi}"),
                 )
@@ -836,7 +860,7 @@ def managed_exports_from_status(
 def export_subject_artifacts(
     subject_dir: Path,
     subject_out: Path,
-    atlas_keys: tuple[str, ...],
+    atlases: dict[str, AtlasSpec],
     atlas_region_hashes: Optional[dict[str, str]] = None,
     managed_exports: Optional[dict[str, dict[str, Any]]] = None,
 ) -> dict[str, Any]:
@@ -846,14 +870,14 @@ def export_subject_artifacts(
     files are accepted; conflicting files are never replaced.
     """
     validation_errors = validate_external_artifacts(
-        subject_out, atlas_keys, atlas_region_hashes
+        subject_out, atlases, atlas_region_hashes
     )
     if validation_errors:
         raise RuntimeError("; ".join(validation_errors))
 
     plans: list[tuple[Path, Path]] = []
-    for atlas in atlas_keys:
-        spec = ATLAS_SPECS[atlas]
+    for atlas in atlases:
+        spec = atlases[atlas]
         if spec.kind != "external":
             continue
         for hemi in HEMISPHERES:
@@ -913,7 +937,7 @@ def export_subject_artifacts(
 
 def subject_input_fingerprint(
     subject_dir: Path,
-    atlas_keys: tuple[str, ...],
+    atlases: dict[str, AtlasSpec],
     managed_exports: Optional[dict[str, dict[str, Any]]] = None,
 ) -> str:
     paths = {
@@ -921,8 +945,8 @@ def subject_input_fingerprint(
         subject_dir / "scripts" / "build-stamp.txt",
         subject_dir / "scripts" / "recon-all.done",
     }
-    for key in atlas_keys:
-        spec = ATLAS_SPECS[key]
+    for key in atlases:
+        spec = atlases[key]
         if spec.kind == "builtin":
             paths.update(subject_dir / "stats" / f"{hemi}.{spec.stats_stem}.stats" for hemi in HEMISPHERES)
         else:
@@ -936,8 +960,9 @@ def subject_input_fingerprint(
                         subject_dir / "surf" / f"{hemi}.thickness",
                     }
                 )
-                for annotation, _stats in subject_external_artifact_candidates(subject_dir, spec, hemi):
-                    paths.add(annotation)
+                if spec.annot_pattern:
+                    for annotation, _stats in subject_external_artifact_candidates(subject_dir, spec, hemi):
+                        paths.add(annotation)
     states = []
     for path in sorted(paths):
         if managed_export_key(subject_dir, path) in (managed_exports or {}):
@@ -958,8 +983,8 @@ def external_surface_fingerprint(subject_dir: Path, hemi: str) -> str:
     return json_fingerprint([file_state(path) for path in paths])
 
 
-def template_input_fingerprint(fs_home: Path, atlas_keys: tuple[str, ...]) -> str:
-    source_subjects = {ATLAS_SPECS[key].source_subject for key in atlas_keys} - {None}
+def template_input_fingerprint(fs_home: Path, atlases: dict[str, AtlasSpec]) -> str:
+    source_subjects = {atlases[key].source_subject for key in atlases} - {None}
     paths = []
     for source_subject in sorted(str(source) for source in source_subjects):
         for hemi in HEMISPHERES:
@@ -1014,7 +1039,7 @@ def parse_cortical_stats(path: Path, atlas: str, hemi: str) -> list[dict[str, An
         for line in handle:
             if not line.strip() or line.startswith("#"):
                 continue
-            values = line.split()
+            values = line.strip().rsplit(None, len(CORTICAL_COLUMNS))
             if len(values) < 10:
                 continue
             rows.append(
@@ -1074,12 +1099,13 @@ def is_nonnegative_integer(value: Any) -> bool:
 
 def validate_cortical_rows(
     rows: list[dict[str, Any]],
-    atlas: str,
+    spec: AtlasSpec,
     hemi: str,
     expected_region_sha256: Optional[str] = None,
 ) -> list[str]:
     errors = []
-    expected = EXPECTED_HEMISPHERE_ROWS[atlas][hemi]
+    atlas = spec.key
+    expected = spec.expected_rows(hemi)
     if len(rows) != expected:
         errors.append(f"{atlas}/{hemi}: expected {expected} cortical rows, observed {len(rows)}")
     regions = [str(row["region"]) for row in rows]
@@ -1088,6 +1114,8 @@ def validate_cortical_rows(
         errors.append(f"{atlas}/{hemi}: duplicate regions: {', '.join(duplicates)}")
     if expected_region_sha256 and region_set_sha256(regions) != expected_region_sha256:
         errors.append(f"{atlas}/{hemi}: region names do not match the pinned atlas schema")
+    if spec.regions and set(regions) != set(spec.region_names(hemi)):
+        errors.append(f"{atlas}/{hemi}: region names do not match the atlas definition")
     invalid = [
         str(row["region"])
         for row in rows
@@ -1212,7 +1240,7 @@ def read_required_tsv(path: Path, required_fields: list[str]) -> list[dict[str, 
 
 def validate_subject_output_tables(
     subject_out: Path,
-    atlas_keys: tuple[str, ...],
+    atlases: dict[str, AtlasSpec],
     atlas_region_hashes: Optional[dict[str, str]] = None,
 ) -> list[str]:
     """Validate cached/serialized subject tables before they are trusted."""
@@ -1249,17 +1277,17 @@ def validate_subject_output_tables(
     for row in cortical_raw:
         atlas = row["atlas"]
         hemi = row["hemisphere"]
-        if atlas not in atlas_keys or hemi not in HEMISPHERES:
+        if atlas not in atlases or hemi not in HEMISPHERES:
             errors.append(f"cortical.tsv contains unexpected atlas/hemisphere: {atlas}/{hemi}")
             continue
         typed = {**row, **{column: parse_number(row[column]) for column in CORTICAL_COLUMNS}}
         grouped.setdefault((atlas, hemi), []).append(typed)
-    for atlas in atlas_keys:
+    for atlas in atlases:
         for hemi in HEMISPHERES:
             errors.extend(
                 validate_cortical_rows(
                     grouped.get((atlas, hemi), []),
-                    atlas,
+                    atlases[atlas],
                     hemi,
                     atlas_region_hashes.get(f"{atlas}:{hemi}"),
                 )
@@ -1277,11 +1305,11 @@ def validate_subject_output_tables(
 def validate_cached_subject_outputs(
     subject_out: Path,
     previous: dict[str, Any],
-    atlas_keys: tuple[str, ...],
+    atlases: dict[str, AtlasSpec],
     atlas_region_hashes: Optional[dict[str, str]] = None,
 ) -> list[str]:
-    errors = validate_subject_output_tables(subject_out, atlas_keys, atlas_region_hashes)
-    errors.extend(validate_external_artifacts(subject_out, atlas_keys, atlas_region_hashes))
+    errors = validate_subject_output_tables(subject_out, atlases, atlas_region_hashes)
+    errors.extend(validate_external_artifacts(subject_out, atlases, atlas_region_hashes))
     expected_integrity = previous.get("output_artifacts")
     if expected_integrity is not None and expected_integrity != output_artifact_integrity(subject_out):
         errors.append("Cached subject output checksums do not match status.json")
@@ -1319,32 +1347,94 @@ def infer_fs_version(subject_dir: Path) -> tuple[str, str]:
     return (match.group(1) if match else "unknown", raw or "unknown")
 
 
-def validate_atlas_files(atlas_dir: Path, atlas_keys: tuple[str, ...]) -> dict[str, str]:
+def validate_atlas_files(atlas_dir: Path, atlases: dict[str, AtlasSpec]) -> dict[str, str]:
     checksums = {}
+    curated_checksums = {}
     missing = []
-    for key in atlas_keys:
-        spec = ATLAS_SPECS[key]
+    for key in atlases:
+        spec = atlases[key]
         if spec.kind != "external":
             continue
         for hemi in HEMISPHERES:
-            path = atlas_dir / str(spec.annot_pattern).format(hemi=hemi)
+            path = spec.annotation_path(atlas_dir, hemi)
             if not path.is_file():
                 missing.append(str(path))
             else:
-                checksums[path.name] = sha256(path)
+                checksums[f"{key}:{hemi}"] = sha256(path)
+                if spec.annot_pattern:
+                    curated_checksums[path.name] = checksums[f"{key}:{hemi}"]
     if missing:
-        raise FileNotFoundError("Missing bundled atlas files:\n" + "\n".join(missing))
+        raise FileNotFoundError("Missing atlas files:\n" + "\n".join(missing))
 
     manifest_path = atlas_dir / "manifest.json"
-    if checksums and not manifest_path.is_file():
+    if curated_checksums and not manifest_path.is_file():
         raise FileNotFoundError(f"Atlas manifest is required: {manifest_path}")
-    if manifest_path.is_file():
+    if curated_checksums:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         expected = {item["file"]: item["sha256"] for item in manifest.get("files", [])}
-        mismatches = [name for name, digest in checksums.items() if expected.get(name) != digest]
+        mismatches = [name for name, digest in curated_checksums.items() if expected.get(name) != digest]
         if mismatches:
             raise RuntimeError("Atlas checksum mismatch: " + ", ".join(mismatches))
     return checksums
+
+
+def resolve_atlases(inputs: Iterable[str], atlas_dir: Path, fs_home: Path) -> dict[str, AtlasSpec]:
+    """Resolve curated names and JSON definitions before processing any subjects."""
+    atlases = {}
+    for value in inputs:
+        if value in ATLAS_SPECS:
+            spec = ATLAS_SPECS[value]
+        else:
+            definition_path = Path(value).resolve()
+            document = json.loads(definition_path.read_text(encoding="utf-8"))
+            key = document["key"]
+            if not isinstance(key, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]*", key):
+                raise ValueError("Atlas key must start with a letter or digit and contain only letters, digits, _ or -")
+            if key in ATLAS_SPECS:
+                raise ValueError(f"Custom atlas key is reserved for a curated atlas: {key}")
+            source = document["source_subject"]
+            if source not in {"fsaverage", "fsaverage5"}:
+                raise ValueError(f"{key}: source_subject must be fsaverage or fsaverage5")
+            annotations = tuple(
+                str((definition_path.parent / document["annotations"][hemi]).resolve())
+                for hemi in HEMISPHERES
+            )
+            excluded = document.get("excluded_regions", [])
+            if not isinstance(excluded, list) or not all(isinstance(name, str) for name in excluded):
+                raise ValueError(f"{key}: excluded_regions must be a list of region names")
+            spec = AtlasSpec(
+                key, document.get("display_name", key), 0, "external", key,
+                source, excluded_regions=tuple(dict.fromkeys((*STATS_EXCLUDED_REGIONS, *excluded))),
+                annotations=annotations,
+            )
+        if spec.key in atlases:
+            raise ValueError(f"Duplicate atlas key: {spec.key}")
+        if spec.kind == "external":
+            annotations = tuple(str(spec.annotation_path(atlas_dir, hemi).resolve()) for hemi in HEMISPHERES)
+            regions = []
+            for hemi, annotation in zip(HEMISPHERES, annotations):
+                vertex_count, names = annotation_contents(
+                    Path(annotation), used_only=not bool(spec.annot_pattern)
+                )
+                surface = fs_home / "subjects" / str(spec.source_subject) / "surf" / f"{hemi}.white"
+                template_vertices = read_surface_vertex_count(surface)
+                if vertex_count != template_vertices:
+                    raise ValueError(
+                        f"{spec.key}/{hemi}: annotation has {vertex_count} vertices; "
+                        f"{spec.source_subject} surface has {template_vertices}"
+                    )
+                selected = tuple(name for name in names if name not in spec.excluded_regions)
+                if not selected or len(set(selected)) != len(selected):
+                    raise ValueError(f"{spec.key}/{hemi}: expected nonempty, unique region names after exclusions")
+                if spec.annot_pattern and len(selected) != spec.expected_rows(hemi):
+                    raise ValueError(f"{spec.key}/{hemi}: region count does not match the curated atlas")
+                regions.append(selected)
+            spec = replace(
+                spec, annotations=annotations, regions=tuple(regions),
+                expected_total=sum(map(len, regions)),
+            )
+        atlases[spec.key] = spec
+    return atlases
 
 
 def ensure_link(path: Path, target: Path) -> None:
@@ -1405,7 +1495,7 @@ def extract_subject(
     subject_dir: Path,
     output_dir: Path,
     atlas_dir: Path,
-    atlas_keys: tuple[str, ...],
+    atlases: dict[str, AtlasSpec],
     atlas_fingerprint: str,
     atlas_checksums: dict[str, str],
     fs_home: Path,
@@ -1430,11 +1520,11 @@ def extract_subject(
         subject_dir, subject_out, previous_status
     )
     input_fingerprint = subject_input_fingerprint(
-        subject_dir, atlas_keys, managed_exports
+        subject_dir, atlases, managed_exports
     )
     fingerprint_payload = {
         "atlas_fingerprint": atlas_fingerprint,
-        "atlases": atlas_keys,
+        "atlases": {key: asdict(spec) for key, spec in atlases.items()},
         "subject_dir": str(subject_dir),
         "subject_input_fingerprint": input_fingerprint,
         "runtime_version": runtime_version,
@@ -1457,7 +1547,7 @@ def extract_subject(
             )
         ):
             cache_validation_errors = validate_cached_subject_outputs(
-                subject_out, previous, atlas_keys, atlas_region_hashes
+                subject_out, previous, atlases, atlas_region_hashes
             )
             if not cache_validation_errors:
                 for key in (
@@ -1476,7 +1566,7 @@ def extract_subject(
                 return previous
 
     subject_out.mkdir(parents=True, exist_ok=True)
-    has_external_atlas = any(ATLAS_SPECS[key].kind == "external" for key in atlas_keys)
+    has_external_atlas = any(atlases[key].kind == "external" for key in atlases)
     if has_external_atlas:
         if work_subjects is None:
             raise RuntimeError("A managed work directory is required for external atlases.")
@@ -1493,8 +1583,8 @@ def extract_subject(
         log.write(f"\nSTART tool={TOOL_VERSION} cache_schema={CACHE_SCHEMA_VERSION} subject={folder_id}\n")
         for message in cache_validation_errors:
             log.write(f"CACHE_INVALID {message}\n")
-        for key in atlas_keys:
-            spec = ATLAS_SPECS[key]
+        for key in atlases:
+            spec = atlases[key]
             atlas_rows: list[dict[str, Any]] = []
             for hemi in HEMISPHERES:
                 try:
@@ -1507,13 +1597,13 @@ def extract_subject(
                         stats_dir = subject_out / "stats"
                         annotation_dir.mkdir(exist_ok=True)
                         stats_dir.mkdir(exist_ok=True)
-                        source_annot = atlas_dir / str(spec.annot_pattern).format(hemi=hemi)
+                        source_annot = spec.annotation_path(atlas_dir, hemi)
                         target_annot = output_annotation_path(subject_out, spec, hemi)
                         stats_path = stats_dir / f"{hemi}.{spec.stats_stem}.stats"
                         artifact_status = stats_dir / f"{hemi}.{spec.stats_stem}.artifact.json"
                         subject_annot, subject_stats = (
                             (None, None)
-                            if overwrite
+                            if overwrite or not spec.annot_pattern
                             else reusable_subject_artifacts(
                                 subject_dir,
                                 spec,
@@ -1535,7 +1625,8 @@ def extract_subject(
                                 "cache_schema_version": CACHE_SCHEMA_VERSION,
                                 "atlas": key,
                                 "hemisphere": hemi,
-                                "atlas_sha256": atlas_checksums.get(source_annot.name),
+                                "atlas_sha256": atlas_checksums.get(f"{key}:{hemi}"),
+                                "atlas_definition": asdict(spec),
                                 "subject_surface_fingerprint": external_surface_fingerprint(subject_dir, hemi),
                                 "runtime_version": runtime_version,
                                 "freesurfer_home": str(fs_home),
@@ -1636,7 +1727,7 @@ def extract_subject(
                     hemi_errors.extend(
                         validate_cortical_rows(
                             hemi_rows,
-                            key,
+                            spec,
                             hemi,
                             atlas_region_hashes.get(f"{key}:{hemi}"),
                         )
@@ -1734,7 +1825,7 @@ def extract_subject(
         list(row_metadata) + ["measure", "metric", "description", "value", "unit"],
     )
     serialized_errors = validate_subject_output_tables(
-        subject_out, atlas_keys, atlas_region_hashes
+        subject_out, atlases, atlas_region_hashes
     )
     if serialized_errors:
         errors.extend(
@@ -1776,8 +1867,7 @@ def iter_checked_tsv(
                 yield row
 
 
-def qc_annotation_path(subject_dir: Path, subject_out: Path, atlas: str, hemi: str) -> Path:
-    spec = ATLAS_SPECS[atlas]
+def qc_annotation_path(subject_dir: Path, subject_out: Path, spec: AtlasSpec, hemi: str) -> Path:
     if spec.kind == "builtin":
         return subject_dir / "label" / f"{hemi}.{spec.stats_stem}.annot"
     return output_annotation_path(subject_out, spec, hemi)
@@ -1786,14 +1876,14 @@ def qc_annotation_path(subject_dir: Path, subject_out: Path, atlas: str, hemi: s
 def qc_input_integrity(
     subject_dir: Path,
     subject_out: Path,
-    atlas: str,
+    spec: AtlasSpec,
     surface: str,
     integrity_cache: Optional[IntegrityCache] = None,
 ) -> dict[str, dict[str, Any]]:
     paths: dict[str, Path] = {}
     for hemi in HEMISPHERES:
         paths[f"{hemi}_surface"] = subject_dir / "surf" / f"{hemi}.{surface}"
-        paths[f"{hemi}_annotation"] = qc_annotation_path(subject_dir, subject_out, atlas, hemi)
+        paths[f"{hemi}_annotation"] = qc_annotation_path(subject_dir, subject_out, spec, hemi)
     return {
         name: file_integrity(path, integrity_cache)
         for name, path in paths.items()
@@ -1805,7 +1895,7 @@ def write_qc_artifact_metadata(
     subject_dir: Path,
     subject_out: Path,
     image_path: Path,
-    atlas: str,
+    spec: AtlasSpec,
     surface: str,
     dpi: int,
     run_id: str,
@@ -1814,13 +1904,13 @@ def write_qc_artifact_metadata(
     artifact = {
         "tool_version": TOOL_VERSION,
         "run_id": run_id,
-        "atlas": atlas,
+        "atlas": spec.key,
         "surface": surface,
         "dpi": dpi,
         "image": image_path.name,
         "image_integrity": file_integrity(image_path),
         "input_integrity": qc_input_integrity(
-            subject_dir, subject_out, atlas, surface, integrity_cache
+            subject_dir, subject_out, spec, surface, integrity_cache
         ),
     }
     sidecar = Path(str(image_path) + ".json")
@@ -1832,7 +1922,7 @@ def valid_qc_artifacts(
     subject: Path,
     base: Path,
     summary: dict[str, Any],
-    atlas_keys: tuple[str, ...],
+    atlases: dict[str, AtlasSpec],
     integrity_cache: Optional[IntegrityCache] = None,
 ) -> list[tuple[Path, str, str]]:
     valid: list[tuple[Path, str, str]] = []
@@ -1841,7 +1931,7 @@ def valid_qc_artifacts(
             continue
         atlas = str(artifact.get("atlas", ""))
         surface = str(artifact.get("surface", ""))
-        if atlas not in atlas_keys or surface not in {"inflated", "pial", "white"}:
+        if atlas not in atlases or surface not in {"inflated", "pial", "white"}:
             continue
         image_name = str(artifact.get("image", ""))
         if Path(image_name).name != image_name:
@@ -1857,7 +1947,7 @@ def valid_qc_artifacts(
         if not image_path.is_file() or artifact.get("image_integrity") != file_integrity(image_path):
             continue
         current_inputs = qc_input_integrity(
-            subject, base, atlas, surface, integrity_cache
+            subject, base, atlases[atlas], surface, integrity_cache
         )
         if len(current_inputs) != 4 or artifact.get("input_integrity") != current_inputs:
             continue
@@ -1868,17 +1958,17 @@ def valid_qc_artifacts(
 def write_qc_report(
     output_dir: Path,
     records: list[tuple[Path, Path, dict[str, Any]]],
-    atlas_keys: tuple[str, ...],
+    atlases: dict[str, AtlasSpec],
     integrity_cache: Optional[IntegrityCache] = None,
 ) -> None:
     atlas_images: dict[str, dict[str, list[tuple[Path, str]]]] = {}
     for subject, base, summary in records:
         for image_path, atlas, surface in valid_qc_artifacts(
-            subject, base, summary, atlas_keys, integrity_cache
+            subject, base, summary, atlases, integrity_cache
         ):
             atlas_images.setdefault(atlas, {}).setdefault(subject.name, []).append((image_path, surface))
 
-    atlas_order = [atlas for atlas in atlas_keys if atlas in atlas_images]
+    atlas_order = [atlas for atlas in atlases if atlas in atlas_images]
     tabs = []
     panels = []
     for index, atlas in enumerate(atlas_order):
@@ -1935,7 +2025,7 @@ def write_qc_report(
                     content=content,
                 )
             )
-        display_name = ATLAS_SPECS[atlas].display_name if atlas in ATLAS_SPECS else atlas
+        display_name = atlases[atlas].display_name
         panels.append(
             '<section id="{panel_id}" class="atlas-panel" role="tabpanel" data-atlas="{atlas}" {hidden}>'
             '<div class="panel-head"><h2>{atlas}</h2><span>{display}</span>'
@@ -2055,7 +2145,7 @@ applyFilters();
 
 
 def stale_wide_archive_plans(
-    output_dir: Path, atlas_keys: tuple[str, ...]
+    output_dir: Path, atlases: dict[str, AtlasSpec]
 ) -> list[tuple[Path, Path]]:
     metadata_path = output_dir / "run_metadata.json"
     if not metadata_path.is_file():
@@ -2066,9 +2156,9 @@ def stale_wide_archive_plans(
         return []
     raw_atlases = previous.get("atlases")
     previous_atlases = {
-        key for key in raw_atlases if key in ATLAS_SPECS
+        key for key in raw_atlases if isinstance(key, str) and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]*", key)
     } if isinstance(raw_atlases, list) else set()
-    stale_atlases = sorted(previous_atlases - set(atlas_keys))
+    stale_atlases = sorted(previous_atlases - set(atlases))
     if not stale_atlases:
         return []
     recorded = previous.get("aggregate_artifacts")
@@ -2099,13 +2189,13 @@ def stale_wide_archive_plans(
 def aggregate(
     output_dir: Path,
     subjects: list[Path],
-    atlas_keys: tuple[str, ...],
+    atlases: dict[str, AtlasSpec],
     run_metadata: dict[str, Any],
     atlas_region_hashes: Optional[dict[str, str]] = None,
     qc_integrity_cache: Optional[IntegrityCache] = None,
 ) -> set[str]:
     atlas_region_hashes = atlas_region_hashes or {}
-    stale_wide_plans = stale_wide_archive_plans(output_dir, atlas_keys)
+    stale_wide_plans = stale_wide_archive_plans(output_dir, atlases)
     summaries: list[dict[str, Any]] = []
     records: list[tuple[Path, Path, dict[str, Any]]] = []
     data_records: list[tuple[Path, Path, dict[str, Any]]] = []
@@ -2184,7 +2274,7 @@ def aggregate(
     write_tsv(output_dir / "subjects.tsv", summaries, summary_fields)
 
     meta_fields = ["subject_id", "folder_id", "subject_path", "fs_version", "status", "eTIV_mm3", "lh_euler", "rh_euler", "euler_sum"]
-    atlas_feature_fields: dict[str, set[str]] = {key: set() for key in atlas_keys}
+    atlas_feature_fields: dict[str, set[str]] = {key: set() for key in atlases}
     atlas_complete: Counter[str] = Counter()
     aseg_feature_fields: set[str] = set()
     global_feature_fields: set[str] = set()
@@ -2200,8 +2290,8 @@ def aggregate(
                 atlas_feature_fields[atlas].update(
                     f"{hemi}_{row['region']}_{metric}" for metric in CORTICAL_COLUMNS
                 )
-        for atlas in atlas_keys:
-            if per_atlas[atlas] == ATLAS_SPECS[atlas].expected_total:
+        for atlas in atlases:
+            if per_atlas[atlas] == atlases[atlas].expected_total:
                 atlas_complete[atlas] += 1
         if (base / "aseg.tsv").is_file():
             aseg_feature_fields.update(
@@ -2228,12 +2318,12 @@ def aggregate(
             yield output
 
     output_dir.joinpath("wide").mkdir(exist_ok=True)
-    for atlas in atlas_keys:
+    for atlas in atlases:
         fields = sorted(atlas_feature_fields[atlas])
         write_tsv(output_dir / "wide" / f"{atlas}.tsv", atlas_rows(atlas), meta_fields + fields)
 
     all_feature_fields = sorted(
-        {f"{atlas}__{field}" for atlas in atlas_keys for field in atlas_feature_fields[atlas]}
+        {f"{atlas}__{field}" for atlas in atlases for field in atlas_feature_fields[atlas]}
         | aseg_feature_fields
         | global_feature_fields
     )
@@ -2260,24 +2350,29 @@ def aggregate(
 
     atlas_manifest = [
         {
-            **asdict(ATLAS_SPECS[key]),
-            "excluded_regions": ",".join(ATLAS_SPECS[key].excluded_regions),
+            **asdict(atlases[key]),
+            "excluded_regions": ",".join(atlases[key].excluded_regions),
+            "lh_annotation": atlases[key].annotations[0] if atlases[key].annotations else "",
+            "rh_annotation": atlases[key].annotations[1] if atlases[key].annotations else "",
+            "lh_expected_rows": atlases[key].expected_rows("lh"),
+            "rh_expected_rows": atlases[key].expected_rows("rh"),
             "lh_region_sha256": atlas_region_hashes.get(f"{key}:lh"),
             "rh_region_sha256": atlas_region_hashes.get(f"{key}:rh"),
             "observed_subjects_complete": atlas_complete[key],
         }
-        for key in atlas_keys
+        for key in atlases
     ]
     write_tsv(
         output_dir / "atlas_manifest.tsv",
         atlas_manifest,
         [
             "key", "display_name", "expected_total", "kind", "stats_stem",
-            "source_subject", "annot_pattern", "excluded_regions",
+            "source_subject", "annot_pattern", "lh_annotation", "rh_annotation", "excluded_regions",
+            "lh_expected_rows", "rh_expected_rows",
             "lh_region_sha256", "rh_region_sha256", "observed_subjects_complete",
         ],
     )
-    write_qc_report(output_dir, records, atlas_keys, qc_integrity_cache)
+    write_qc_report(output_dir, records, atlases, qc_integrity_cache)
     archived_wide_tables = []
     for source, destination in stale_wide_plans:
         destination.parent.mkdir(parents=True, exist_ok=True)
@@ -2286,7 +2381,7 @@ def aggregate(
     run_metadata["archived_wide_tables"] = archived_wide_tables
     run_metadata["aggregate_artifacts"] = {
         f"wide/{atlas}.tsv": file_integrity(output_dir / "wide" / f"{atlas}.tsv")
-        for atlas in atlas_keys
+        for atlas in atlases
     }
     run_metadata["finished_at_utc"] = datetime.now(timezone.utc).isoformat()
     atomic_write_text(output_dir / "run_metadata.json", json.dumps(run_metadata, indent=2) + "\n")
@@ -2323,9 +2418,12 @@ def parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
     )
     parser.add_argument("--freesurfer-home", type=Path, default=os.environ.get("FREESURFER_HOME"))
     parser.add_argument("--atlas-dir", type=Path, default=Path(__file__).resolve().parent / "atlases")
-    parser.add_argument("--atlases", nargs="+", choices=tuple(ATLAS_SPECS), default=list(DEFAULT_ATLASES))
+    parser.add_argument(
+        "--atlases", nargs="+", metavar="NAME_OR_JSON", default=list(DEFAULT_ATLASES),
+        help="Curated atlas names or custom atlas JSON files; may be mixed. Default: dk68.",
+    )
     parser.add_argument("--qc-plots", action="store_true", help="Render four-view cortical atlas PNGs (optional dependencies).")
-    parser.add_argument("--qc-atlases", nargs="+", choices=tuple(ATLAS_SPECS), help="Subset of selected atlases to render.")
+    parser.add_argument("--qc-atlases", nargs="+", help="Keys of selected atlases to render, including custom atlas keys.")
     parser.add_argument("--qc-surface", choices=("inflated", "pial", "white"), default="inflated")
     parser.add_argument("--qc-dpi", type=int, default=150)
     parser.add_argument(
@@ -2366,11 +2464,13 @@ def _main(argv: Optional[list[str]], resources: RunResources) -> int:
     ):
         raise ValueError("Input and output directories must not contain one another.")
 
-    atlas_keys = tuple(args.atlases)
-    qc_atlas_keys = tuple(args.qc_atlases or atlas_keys)
-    unselected_qc = sorted(set(qc_atlas_keys) - set(atlas_keys))
+    atlas_root = args.atlas_dir.resolve()
+    atlases = resolve_atlases(args.atlases, atlas_root, fs_home)
+    qc_keys = args.qc_atlases or list(atlases)
+    unselected_qc = sorted(set(qc_keys) - set(atlases))
     if args.qc_plots and unselected_qc:
         raise ValueError("--qc-atlases must be included in --atlases: " + ", ".join(unselected_qc))
+    qc_atlases = {key: atlases[key] for key in qc_keys if key in atlases}
     render_subject_function: Any = None
     qc_integrity_cache: IntegrityCache = {}
     if args.qc_plots:
@@ -2381,11 +2481,10 @@ def _main(argv: Optional[list[str]], resources: RunResources) -> int:
                 "QC plots require numpy, nibabel, matplotlib, and Pillow; install requirements-qc.txt."
             ) from exc
 
-    atlas_root = args.atlas_dir.resolve()
-    atlas_checksums = validate_atlas_files(atlas_root, atlas_keys)
-    atlas_region_hashes = load_region_schema(atlas_root, atlas_keys)
+    atlas_checksums = validate_atlas_files(atlas_root, atlases)
+    atlas_region_hashes = load_region_schema(atlas_root, atlases)
     atlas_fingerprint = json_fingerprint(
-        {"files": atlas_checksums, "region_sets": atlas_region_hashes}
+        {"files": atlas_checksums, "definitions": {key: asdict(spec) for key, spec in atlases.items()}}
     )
     subjects = discover_subjects(subjects_root, args.recursive)
     if args.limit is not None:
@@ -2406,9 +2505,9 @@ def _main(argv: Optional[list[str]], resources: RunResources) -> int:
 
     output_root.mkdir(parents=True, exist_ok=True)
     resources.acquire(output_root, args.force_unlock)
-    has_external_atlas = any(ATLAS_SPECS[key].kind == "external" for key in atlas_keys)
+    has_external_atlas = any(atlases[key].kind == "external" for key in atlases)
     work_subjects = resources.create_work_dir() / "subjects" if has_external_atlas else None
-    for source_subject in {ATLAS_SPECS[key].source_subject for key in atlas_keys} - {None}:
+    for source_subject in {atlases[key].source_subject for key in atlases} - {None}:
         if work_subjects is None:
             raise AssertionError("External atlas source requires a managed work directory.")
         source_path = fs_home / "subjects" / str(source_subject)
@@ -2417,7 +2516,7 @@ def _main(argv: Optional[list[str]], resources: RunResources) -> int:
         ensure_link(work_subjects / str(source_subject), source_path)
 
     runtime_version = command_version()
-    template_fingerprint = template_input_fingerprint(fs_home, atlas_keys)
+    template_fingerprint = template_input_fingerprint(fs_home, atlases)
     started_at = datetime.now(timezone.utc).isoformat()
     run_id = uuid.uuid4().hex
     print(f"Discovered {len(subjects)} subjects; jobs={args.jobs}; FreeSurfer={runtime_version}", flush=True)
@@ -2430,7 +2529,7 @@ def _main(argv: Optional[list[str]], resources: RunResources) -> int:
                 subject,
                 output_root,
                 args.atlas_dir.resolve(),
-                atlas_keys,
+                atlases,
                 atlas_fingerprint,
                 atlas_checksums,
                 fs_home,
@@ -2495,7 +2594,7 @@ def _main(argv: Optional[list[str]], resources: RunResources) -> int:
                     export_result = export_subject_artifacts(
                         subject,
                         subject_out,
-                        atlas_keys,
+                        atlases,
                         atlas_region_hashes,
                         status.get("managed_exports"),
                     )
@@ -2531,7 +2630,7 @@ def _main(argv: Optional[list[str]], resources: RunResources) -> int:
             status_path = subject_out / "status.json"
             try:
                 outputs = render_subject_function(
-                    subject, subject_out, qc_atlas_keys, args.qc_surface, args.qc_dpi
+                    subject, subject_out, qc_atlases, args.qc_surface, args.qc_dpi
                 )
                 qc_artifacts = []
                 for image_path in outputs:
@@ -2544,7 +2643,7 @@ def _main(argv: Optional[list[str]], resources: RunResources) -> int:
                             subject,
                             subject_out,
                             image_path,
-                            atlas,
+                            atlases[atlas],
                             args.qc_surface,
                             args.qc_dpi,
                             run_id,
@@ -2581,7 +2680,8 @@ def _main(argv: Optional[list[str]], resources: RunResources) -> int:
         "freesurfer_home": str(fs_home),
         "subjects_dir": str(subjects_root),
         "output_dir": str(output_root),
-        "atlases": list(atlas_keys),
+        "atlases": list(atlases),
+        "atlas_definitions": {key: asdict(spec) for key, spec in atlases.items()},
         "atlas_checksums": atlas_checksums,
         "atlas_fingerprint": atlas_fingerprint,
         "atlas_region_sha256": atlas_region_hashes,
@@ -2594,7 +2694,7 @@ def _main(argv: Optional[list[str]], resources: RunResources) -> int:
         "overwrite": args.overwrite,
         "export_to_freesurfer": args.export_to_freesurfer,
         "qc_plots": args.qc_plots,
-        "qc_atlases": list(qc_atlas_keys) if args.qc_plots else None,
+        "qc_atlases": list(qc_atlases) if args.qc_plots else None,
         "qc_surface": args.qc_surface if args.qc_plots else None,
         "qc_dpi": args.qc_dpi if args.qc_plots else None,
     }
@@ -2602,7 +2702,7 @@ def _main(argv: Optional[list[str]], resources: RunResources) -> int:
         aggregate(
             output_root,
             subjects,
-            atlas_keys,
+            atlases,
             run_metadata,
             atlas_region_hashes,
             qc_integrity_cache,

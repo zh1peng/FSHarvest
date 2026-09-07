@@ -16,6 +16,10 @@
 
 默认只选择 `dk68`。其他分区都必须通过 `--atlases` 明确指定。
 
+`--atlases` 也接受自定义分区 JSON，可与上表的名称混用。
+用户提供左右 annot 和源模板后，共用现有投影、统计、汇总及 QC 流程，
+详见[使用自己的 annot 文件](../tutorials/multi-atlas.md#使用自己的-annot-文件)。
+
 ## 两条提取路径
 
 ### FreeSurfer 内置分区

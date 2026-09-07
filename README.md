@@ -27,7 +27,7 @@ Input FreeSurfer folders are read-only by default. Subject-specific external ann
 
 Requirements: Linux, Python 3.9+, a licensed FreeSurfer installation, and `curl` only if re-downloading atlases. Core extraction has no Python package dependencies. QC PNG rendering additionally needs NumPy, Nibabel, Matplotlib, and Pillow (`python3 -m pip install -r requirements-qc.txt`).
 
-FSHarvest 1.0.0 was end-to-end tested with a FreeSurfer 7.4.1 runtime against reconstructions produced by FreeSurfer 7.2.0. The automated regression suite and a representative-subject FreeSurfer smoke test cover the released source. Validate other FreeSurfer releases on representative subjects before study-wide use.
+FSHarvest 1.0.0 was end-to-end tested with a FreeSurfer 7.4.1 runtime against reconstructions produced by FreeSurfer 7.2.0. Version 1.0.1 adds custom annotation inputs and has passed 55 automated tests, Ruff, mypy, and the documentation build; its FreeSurfer command flow was tested with substitutes, without a new real-data smoke test. Validate other FreeSurfer releases on representative subjects before study-wide use.
 
 ```bash
 cd /path/to/FSHarvest
@@ -93,6 +93,57 @@ fsharvest INPUT OUTPUT --atlases dk68 schaefer100 --export-to-freesurfer
 `--freesurfer-home /path/to/freesurfer` initializes that installation when FreeSurfer is not already on `PATH`. Cached outputs are reused only when the cache schema, non-downgrade tool version, source files, atlas assets, FreeSurfer runtime/template, successful status, TSV schemas, semantic checks, and recorded output checksums all match. External annotations are structurally parsed, checked against the pinned region schema and surface vertex count, and protected together with their statistics by per-artifact SHA-256 records. `PARTIAL`, `FAILED`, and damaged cached subjects are retried automatically; `--overwrite` ignores private caches and reusable subject annotations, forcing fresh projection and statistics generation.
 
 Without `--atlases`, FSHarvest extracts only `dk68`. Every other atlas is opt-in so routine runs remain fast and produce compact tables.
+
+## Custom annotations
+
+`--atlases` accepts curated atlas names and custom JSON definitions in the same command:
+
+```bash
+fsharvest INPUT OUTPUT --atlases dk68 schaefer100 /path/to/lab-atlas.json \
+  --qc-plots --qc-atlases lab
+```
+
+For a custom-only run, use `--atlases /path/to/lab-atlas.json`. Create the definition as:
+
+```json
+{
+  "key": "lab",
+  "display_name": "Laboratory atlas",
+  "source_subject": "fsaverage5",
+  "annotations": {
+    "lh": "lh.lab.annot",
+    "rh": "rh.lab.annot"
+  },
+  "excluded_regions": ["unknown", "corpuscallosum"]
+}
+```
+
+Annotation paths are absolute or relative to the JSON file. Both hemispheres are required.
+`key` identifies output files and QC selection; use a unique name beginning with a letter or digit,
+containing only letters, digits, `_` or `-`. Curated keys cannot be redefined.
+`display_name` is optional and defaults to `key`. The labels `unknown`, `Unknown`,
+`corpuscallosum` and `Medial_wall` are automatically excluded to match FreeSurfer statistics.
+`excluded_regions` optionally adds other exact label names to exclude.
+
+Explicitly declare `source_subject` as `fsaverage5` or `fsaverage`, matching the space in which
+the annotations were created. The corresponding template must be installed under
+`FREESURFER_HOME/subjects/`. Vertex counts are checked against that template; matching counts
+alone do not establish the correct space. Subject-native custom annotations are not accepted
+through this template input.
+
+Curated and custom inputs resolve to the same atlas definition and share projection with
+`mri_surf2surf`, statistics generation with `mris_anatomical_stats`, table extraction and QC.
+DK68 and Destrieux continue to read existing recon-all statistics directly. Custom regional
+names and counts come from color-table entries assigned to source vertices, after exclusions;
+unused entries are ignored and left and right counts may differ. Region names may contain spaces.
+All retained regions must appear in the resulting statistics; a region lost during projection
+is still reported as missing.
+
+Custom inputs require no user-supplied manifest or region hashes. The specified annotation files
+are the source for projection, even if a subject has same-name annotations. Unchanged output
+caches can be reused. `run_metadata.json` records the resolved definitions and regional names;
+`atlas_manifest.tsv` includes annotation paths and per-hemisphere counts. Outputs use the custom
+key, for example `wide/lab.tsv` and `per_subject/SUBJECT/label/lh.lab.annot`.
 
 ## Slurm/VACC
 

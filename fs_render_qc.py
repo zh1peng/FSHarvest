@@ -6,10 +6,11 @@ from __future__ import annotations
 import argparse
 import gc
 import io
+import json
 import os
 import tempfile
 from pathlib import Path
-from typing import Iterable
+from fs_extract_all import AtlasSpec, qc_annotation_path
 
 import matplotlib
 
@@ -21,41 +22,12 @@ from mpl_toolkits.mplot3d.axes3d import Axes3D  # type: ignore[import-untyped]
 from PIL import Image, ImageChops
 
 
-ANNOTATION_STEMS = {
-    "dk68": "aparc",
-    "destrieux": "aparc.a2009s",
-    "dk308": "dk308",
-    "schaefer100": "schaefer100",
-    "schaefer200": "schaefer200",
-    "schaefer300": "schaefer300",
-    "schaefer400": "schaefer400",
-    "schaefer500": "schaefer500",
-    "schaefer600": "schaefer600",
-    "schaefer700": "schaefer700",
-    "schaefer800": "schaefer800",
-    "schaefer900": "schaefer900",
-    "schaefer1000": "schaefer1000",
-    "glasser360": "glasser360",
-    "economo": "economo",
-    "vosdewael300": "vosdewael300",
-}
-BUILTIN_ATLASES = {"dk68", "destrieux"}
 VIEWS = (
     ("lh", 180),
     ("lh", 0),
     ("rh", 0),
     ("rh", 180),
 )
-
-
-def annotation_path(subject_dir: Path, subject_out: Path, atlas: str, hemi: str) -> Path:
-    stem = ANNOTATION_STEMS[atlas]
-    if atlas in BUILTIN_ATLASES:
-        return subject_dir / "label" / f"{hemi}.{stem}.annot"
-    canonical = subject_out / "label" / f"{hemi}.{stem}.annot"
-    if canonical.is_file():
-        return canonical
-    return subject_out / "annotations" / f"{hemi}.{stem}.annot"
 
 
 def face_colors(vertices: np.ndarray, faces: np.ndarray, labels: np.ndarray, ctab: np.ndarray) -> np.ndarray:
@@ -151,16 +123,15 @@ def crop_white_margin(image: Image.Image, padding: int) -> Image.Image:
 def render_atlas(
     subject_dir: Path,
     subject_out: Path,
-    atlas: str,
+    spec: AtlasSpec,
     surface: str,
     dpi: int,
 ) -> Path:
-    if atlas not in ANNOTATION_STEMS:
-        raise ValueError(f"Unknown atlas: {atlas}")
+    atlas = spec.key
     loaded: dict[str, tuple[np.ndarray, np.ndarray, np.ndarray]] = {}
     for hemi in ("lh", "rh"):
         surface_path = subject_dir / "surf" / f"{hemi}.{surface}"
-        annot_path = annotation_path(subject_dir, subject_out, atlas, hemi)
+        annot_path = qc_annotation_path(subject_dir, subject_out, spec, hemi)
         if not surface_path.is_file():
             raise FileNotFoundError(f"Missing surface: {surface_path}")
         if not annot_path.is_file():
@@ -209,18 +180,18 @@ def render_atlas(
 def render_subject(
     subject_dir: Path,
     subject_out: Path,
-    atlases: Iterable[str],
+    atlases: dict[str, AtlasSpec],
     surface: str = "inflated",
     dpi: int = 150,
 ) -> list[Path]:
-    return [render_atlas(subject_dir, subject_out, atlas, surface, dpi) for atlas in atlases]
+    return [render_atlas(subject_dir, subject_out, spec, surface, dpi) for spec in atlases.values()]
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Render four-view PNGs from FSHarvest annotations.")
     parser.add_argument("subject_dir", type=Path)
     parser.add_argument("subject_output_dir", type=Path)
-    parser.add_argument("--atlases", nargs="+", choices=tuple(ANNOTATION_STEMS), default=list(ANNOTATION_STEMS))
+    parser.add_argument("--atlases", nargs="+", help="Atlas keys from the extraction run; defaults to all selected atlases.")
     parser.add_argument("--surface", choices=("inflated", "pial", "white"), default="inflated")
     parser.add_argument("--dpi", type=int, default=150)
     return parser.parse_args()
@@ -228,10 +199,13 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
+    metadata_path = args.subject_output_dir.resolve().parents[1] / "run_metadata.json"
+    definitions = json.loads(metadata_path.read_text(encoding="utf-8"))["atlas_definitions"]
+    atlases = {key: AtlasSpec(**definitions[key]) for key in (args.atlases or definitions)}
     outputs = render_subject(
         args.subject_dir.resolve(),
         args.subject_output_dir.resolve(),
-        args.atlases,
+        atlases,
         args.surface,
         args.dpi,
     )

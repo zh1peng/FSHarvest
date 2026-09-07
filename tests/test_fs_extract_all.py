@@ -16,6 +16,10 @@ assert SPEC.loader is not None
 sys.modules[SPEC.name] = MODULE
 SPEC.loader.exec_module(MODULE)
 
+def selected_atlases(keys):
+    return {key: MODULE.ATLAS_SPECS[key] for key in keys}
+
+
 DK68_REGIONS = """
 bankssts caudalanteriorcingulate caudalmiddlefrontal cuneus entorhinal fusiform
 inferiorparietal inferiortemporal isthmuscingulate lateraloccipital
@@ -135,7 +139,7 @@ class ExtractionUnitTests(unittest.TestCase):
 
     def test_bundled_external_atlases_match_manifest(self):
         atlas_dir = MODULE_PATH.parent / "atlases"
-        checksums = MODULE.validate_atlas_files(atlas_dir, tuple(MODULE.ATLAS_SPECS))
+        checksums = MODULE.validate_atlas_files(atlas_dir, selected_atlases(tuple(MODULE.ATLAS_SPECS)))
         self.assertEqual(len(checksums), 28)
 
     def test_external_atlas_region_schema_matches_annotations(self):
@@ -144,7 +148,7 @@ class ExtractionUnitTests(unittest.TestCase):
         except ImportError:
             self.skipTest("nibabel is required to inspect annotation label tables")
         atlas_dir = MODULE_PATH.parent / "atlases"
-        schema = MODULE.load_region_schema(atlas_dir, tuple(MODULE.ATLAS_SPECS))
+        schema = MODULE.load_region_schema(atlas_dir, selected_atlases(tuple(MODULE.ATLAS_SPECS)))
         for atlas, spec in MODULE.ATLAS_SPECS.items():
             if spec.kind != "external":
                 continue
@@ -164,7 +168,7 @@ class ExtractionUnitTests(unittest.TestCase):
 
     def test_dependency_free_annotation_validation_matches_schema(self):
         atlas_dir = MODULE_PATH.parent / "atlases"
-        schema = MODULE.load_region_schema(atlas_dir, tuple(MODULE.ATLAS_SPECS))
+        schema = MODULE.load_region_schema(atlas_dir, selected_atlases(tuple(MODULE.ATLAS_SPECS)))
         for atlas, spec in MODULE.ATLAS_SPECS.items():
             if spec.kind != "external":
                 continue
@@ -181,7 +185,7 @@ class ExtractionUnitTests(unittest.TestCase):
         atlas_dir = MODULE_PATH.parent / "atlases"
         path = atlas_dir / "lh.schaefer-100_mics.annot"
         vertex_count, _names = MODULE.annotation_contents(path)
-        schema = MODULE.load_region_schema(atlas_dir, ("schaefer100",))
+        schema = MODULE.load_region_schema(atlas_dir, selected_atlases(("schaefer100",)))
         errors = MODULE.validate_annotation_file(
             path,
             MODULE.ATLAS_SPECS["schaefer100"],
@@ -245,7 +249,7 @@ region_b 11 21 31 2.6 0.2 0.3 0.4 5.0 6.0
             write_valid_aseg(subject / "stats" / "aseg.stats")
             (subject / "scripts").mkdir()
             (subject / "scripts" / "recon-all.done").touch()
-            args = (subject, output, root, ("dk68",), "atlas", {}, root, "FS-7", "template", False)
+            args = (subject, output, root, selected_atlases(("dk68",)), "atlas", {}, root, "FS-7", "template", False)
             with patch.object(MODULE, "ensure_link", lambda *_args: None):
                 first = MODULE.extract_subject(*args)
                 write_cortical(subject / "stats" / "lh.aparc.stats", 34, 99.0)
@@ -265,7 +269,7 @@ region_b 11 21 31 2.6 0.2 0.3 0.4 5.0 6.0
             write_valid_aseg(subject / "stats" / "aseg.stats")
             (subject / "scripts").mkdir()
             (subject / "scripts" / "recon-all.done").touch()
-            args = (subject, output, root, ("dk68",), "atlas", {}, root, "FS-7", "template", False)
+            args = (subject, output, root, selected_atlases(("dk68",)), "atlas", {}, root, "FS-7", "template", False)
             with patch.object(MODULE, "ensure_link", lambda *_args: None):
                 first = MODULE.extract_subject(*args)
                 cortical = output / "per_subject" / "sub-01" / "cortical.tsv"
@@ -286,7 +290,7 @@ region_b 11 21 31 2.6 0.2 0.3 0.4 5.0 6.0
             write_valid_aseg(subject / "stats" / "aseg.stats")
             (subject / "scripts").mkdir()
             (subject / "scripts" / "recon-all.done").touch()
-            args = (subject, output, root, ("dk68",), "atlas", {}, root, "FS-7", "template", False)
+            args = (subject, output, root, selected_atlases(("dk68",)), "atlas", {}, root, "FS-7", "template", False)
             with patch.object(MODULE, "ensure_link", lambda *_args: None):
                 MODULE.extract_subject(*args)
             status_path = output / "per_subject" / "sub-01" / "status.json"
@@ -310,7 +314,7 @@ region_b 11 21 31 2.6 0.2 0.3 0.4 5.0 6.0
             write_valid_aseg(subject / "stats" / "aseg.stats")
             (subject / "scripts").mkdir()
             (subject / "scripts" / "recon-all.done").touch()
-            args = (subject, output, root, ("dk68",), "atlas", {}, root, "FS-7", "template", False)
+            args = (subject, output, root, selected_atlases(("dk68",)), "atlas", {}, root, "FS-7", "template", False)
             with patch.object(MODULE, "TOOL_VERSION", "0.9.0"):
                 first = MODULE.extract_subject(*args)
             second = MODULE.extract_subject(*args)
@@ -331,7 +335,7 @@ region_b 11 21 31 2.6 0.2 0.3 0.4 5.0 6.0
             write_valid_aseg(subject / "stats" / "aseg.stats")
             (subject / "scripts").mkdir()
             (subject / "scripts" / "recon-all.done").touch()
-            args = (subject, output, root, ("dk68",), "atlas", {}, root, "FS-7", "template", False)
+            args = (subject, output, root, selected_atlases(("dk68",)), "atlas", {}, root, "FS-7", "template", False)
             with patch.object(MODULE, "CACHE_SCHEMA_VERSION", 0):
                 first = MODULE.extract_subject(*args)
             second = MODULE.extract_subject(*args)
@@ -340,7 +344,7 @@ region_b 11 21 31 2.6 0.2 0.3 0.4 5.0 6.0
             self.assertEqual(second["cache_hit"], 0)
 
     def test_region_schema_rejects_wrong_names_with_correct_count(self):
-        schema = MODULE.load_region_schema(MODULE_PATH.parent / "atlases", ("dk68",))
+        schema = MODULE.load_region_schema(MODULE_PATH.parent / "atlases", selected_atlases(("dk68",)))
         rows = [
             {
                 "region": region,
@@ -349,13 +353,13 @@ region_b 11 21 31 2.6 0.2 0.3 0.4 5.0 6.0
             for region in DK68_REGIONS
         ]
         self.assertEqual(
-            MODULE.validate_cortical_rows(rows, "dk68", "lh", schema["dk68:lh"]),
+            MODULE.validate_cortical_rows(rows, MODULE.ATLAS_SPECS["dk68"], "lh", schema["dk68:lh"]),
             [],
         )
         rows[0]["region"] = "wrong-region"
         self.assertIn(
             "region names do not match",
-            " ".join(MODULE.validate_cortical_rows(rows, "dk68", "lh", schema["dk68:lh"])),
+            " ".join(MODULE.validate_cortical_rows(rows, MODULE.ATLAS_SPECS["dk68"], "lh", schema["dk68:lh"])),
         )
 
     def test_aseg_with_only_one_structure_is_incomplete(self):
@@ -410,7 +414,7 @@ region_b 11 21 31 2.6 0.2 0.3 0.4 5.0 6.0
                 MODULE, "run_command", unexpected_command
             ):
                 result = MODULE.extract_subject(
-                    subject, output, root, ("dk68",), "atlas", {}, root, "FS-7", "template", False
+                    subject, output, root, selected_atlases(("dk68",)), "atlas", {}, root, "FS-7", "template", False
                 )
 
             self.assertEqual(result["status"], "OK")
@@ -426,7 +430,7 @@ region_b 11 21 31 2.6 0.2 0.3 0.4 5.0 6.0
             write_valid_aseg(subject / "stats" / "aseg.stats")
             (subject / "scripts").mkdir()
             (subject / "scripts" / "recon-all.done").touch()
-            args = (subject, output, root, ("dk68",), "atlas", {}, root, "FS-7", "template", False)
+            args = (subject, output, root, selected_atlases(("dk68",)), "atlas", {}, root, "FS-7", "template", False)
             with patch.object(MODULE, "ensure_link", lambda *_args: None):
                 first = MODULE.extract_subject(*args)
                 write_cortical(subject / "stats" / "rh.aparc.stats", 34)
@@ -466,15 +470,15 @@ region_b 11 21 31 2.6 0.2 0.3 0.4 5.0 6.0
                     target.parent.mkdir(parents=True, exist_ok=True)
                     target.write_bytes(b"projected")
 
-            common = (subject, output, atlas_dir, ("schaefer100",))
+            common = (subject, output, atlas_dir, selected_atlases(("schaefer100",)))
             with patch.object(MODULE, "ensure_link", lambda *_args: None), patch.object(MODULE, "run_command", fake_run):
                 first = MODULE.extract_subject(
-                    *common, "atlas-a", {name: "a" for name in names}, root, "FS-7", "template", False,
+                    *common, "atlas-a", {f"schaefer100:{hemi}": "a" for hemi in MODULE.HEMISPHERES}, root, "FS-7", "template", False,
                     work_subjects=root / "work",
                 )
                 first_call_count = len(calls)
                 second = MODULE.extract_subject(
-                    *common, "atlas-b", {name: "b" for name in names}, root, "FS-7", "template", False,
+                    *common, "atlas-b", {f"schaefer100:{hemi}": "b" for hemi in MODULE.HEMISPHERES}, root, "FS-7", "template", False,
                     work_subjects=root / "work",
                 )
             self.assertEqual(first["status"], "OK")
@@ -512,7 +516,7 @@ region_b 11 21 31 2.6 0.2 0.3 0.4 5.0 6.0
                     target.write_bytes(b"projected")
 
             args = (
-                subject, output, atlas_dir, ("schaefer100",), "atlas",
+                subject, output, atlas_dir, selected_atlases(("schaefer100",)), "atlas",
                 {name: "checksum" for name in names}, root, "FS-7", "template", False,
             )
             with patch.object(MODULE, "ensure_link", lambda *_args: None), patch.object(
@@ -579,7 +583,7 @@ region_b 11 21 31 2.6 0.2 0.3 0.4 5.0 6.0
                     subject,
                     output,
                     atlas_dir,
-                    ("schaefer100",),
+                    selected_atlases(("schaefer100",)),
                     "atlas",
                     checksums,
                     root,
@@ -642,7 +646,7 @@ region_b 11 21 31 2.6 0.2 0.3 0.4 5.0 6.0
                 MODULE, "run_command", fake_run
             ):
                 result = MODULE.extract_subject(
-                    subject, output, atlas_dir, ("schaefer100",), "atlas", checksums,
+                    subject, output, atlas_dir, selected_atlases(("schaefer100",)), "atlas", checksums,
                     root, "FS-7", "template", True,
                     work_subjects=root / "work",
                 )
@@ -682,7 +686,7 @@ region_b 11 21 31 2.6 0.2 0.3 0.4 5.0 6.0
                     target.write_bytes(b"projected")
 
             args = (
-                subject, output, atlas_dir, ("schaefer100",), "atlas", checksums,
+                subject, output, atlas_dir, selected_atlases(("schaefer100",)), "atlas", checksums,
                 root, "FS-7", "template", False,
             )
             with patch.object(MODULE, "ensure_link", lambda *_args: None), patch.object(
@@ -729,7 +733,7 @@ region_b 11 21 31 2.6 0.2 0.3 0.4 5.0 6.0
                     target.write_bytes(b"projected")
 
             args = (
-                subject, output, atlas_dir, ("schaefer100",), "atlas",
+                subject, output, atlas_dir, selected_atlases(("schaefer100",)), "atlas",
                 {name: "checksum" for name in names}, root, "FS-7", "template", False,
             )
             with patch.object(MODULE, "ensure_link", lambda *_args: None), patch.object(
@@ -779,7 +783,7 @@ region_b 11 21 31 2.6 0.2 0.3 0.4 5.0 6.0
             write_artifact_metadata(subject_out, "schaefer100")
 
             first = MODULE.export_subject_artifacts(
-                subject, subject_out, ("dk68", "schaefer100")
+                subject, subject_out, selected_atlases(("dk68", "schaefer100"))
             )
             managed = MODULE.managed_exports_from_status(
                 subject, subject_out, {"managed_exports": first["managed_exports"]}
@@ -787,7 +791,7 @@ region_b 11 21 31 2.6 0.2 0.3 0.4 5.0 6.0
             second = MODULE.export_subject_artifacts(
                 subject,
                 subject_out,
-                ("dk68", "schaefer100"),
+                selected_atlases(("dk68", "schaefer100")),
                 managed_exports=managed,
             )
             self.assertEqual(first["exported_files"], 4)
@@ -797,7 +801,7 @@ region_b 11 21 31 2.6 0.2 0.3 0.4 5.0 6.0
 
             (subject / "label" / "lh.schaefer100.annot").write_bytes(b"conflict")
             with self.assertRaisesRegex(FileExistsError, "Refusing to replace"):
-                MODULE.export_subject_artifacts(subject, subject_out, ("schaefer100",))
+                MODULE.export_subject_artifacts(subject, subject_out, selected_atlases(("schaefer100",)))
             self.assertEqual(
                 (subject / "label" / "lh.schaefer100.annot").read_bytes(), b"conflict"
             )
@@ -925,7 +929,7 @@ region_b 11 21 31 2.6 0.2 0.3 0.4 5.0 6.0
             write_artifact_metadata(subject_out, "schaefer100")
 
             with self.assertRaisesRegex(RuntimeError, "annotation.*empty"):
-                MODULE.export_subject_artifacts(subject, subject_out, ("schaefer100",))
+                MODULE.export_subject_artifacts(subject, subject_out, selected_atlases(("schaefer100",)))
 
     def test_export_conflict_is_preflighted_before_any_copy(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -948,7 +952,7 @@ region_b 11 21 31 2.6 0.2 0.3 0.4 5.0 6.0
             (subject / "label" / "lh.schaefer100.annot").write_bytes(b"conflict")
 
             with self.assertRaisesRegex(FileExistsError, "Refusing to replace"):
-                MODULE.export_subject_artifacts(subject, subject_out, ("schaefer100",))
+                MODULE.export_subject_artifacts(subject, subject_out, selected_atlases(("schaefer100",)))
 
             self.assertFalse((subject / "label" / "rh.schaefer100.annot").exists())
             self.assertEqual(list((subject / "stats").iterdir()), [])
@@ -992,7 +996,7 @@ region_b 11 21 31 2.6 0.2 0.3 0.4 5.0 6.0
                     subject,
                     output,
                     atlas_dir,
-                    ("schaefer100",),
+                    selected_atlases(("schaefer100",)),
                     "atlas",
                     checksums,
                     root,
@@ -1021,10 +1025,10 @@ region_b 11 21 31 2.6 0.2 0.3 0.4 5.0 6.0
             (subject / "scripts" / "recon-all.done").touch()
             with patch.object(MODULE, "ensure_link", lambda *_args: None):
                 MODULE.extract_subject(
-                    subject, output, root, ("dk68",), "atlas", {}, root, "FS-7", "template", False
+                    subject, output, root, selected_atlases(("dk68",)), "atlas", {}, root, "FS-7", "template", False
                 )
             metadata = {"tool": "test", "tool_version": MODULE.TOOL_VERSION}
-            MODULE.aggregate(output, [subject], ("dk68",), metadata)
+            MODULE.aggregate(output, [subject], selected_atlases(("dk68",)), metadata)
             self.assertEqual(len(MODULE.read_tsv(output / "cortical_long.tsv")), 68)
             self.assertEqual(len(MODULE.read_tsv(output / "aseg_long.tsv")), MODULE.MIN_ASEG_ROWS)
             self.assertEqual(len(MODULE.read_tsv(output / "wide" / "dk68.tsv")), 1)
@@ -1152,7 +1156,7 @@ region_b 11 21 31 2.6 0.2 0.3 0.4 5.0 6.0
             (subject / "scripts" / "recon-all.done").touch()
             with patch.object(MODULE, "ensure_link", lambda *_args: None):
                 MODULE.extract_subject(
-                    subject, output, root, ("dk68",), "atlas", {}, root,
+                    subject, output, root, selected_atlases(("dk68",)), "atlas", {}, root,
                     "FS-7", "template", False, run_id="run-1",
                 )
             with patch.object(
@@ -1163,7 +1167,7 @@ region_b 11 21 31 2.6 0.2 0.3 0.4 5.0 6.0
                 non_ok = MODULE.aggregate(
                     output,
                     [subject],
-                    ("dk68",),
+                    selected_atlases(("dk68",)),
                     {
                         "tool": "test",
                         "tool_version": MODULE.TOOL_VERSION,
@@ -1346,19 +1350,19 @@ region_b 11 21 31 2.6 0.2 0.3 0.4 5.0 6.0
             cache: MODULE.IntegrityCache = {}
             with patch.object(MODULE, "sha256", wraps=MODULE.sha256) as hash_file:
                 dk = MODULE.qc_input_integrity(
-                    subject, subject_out, "dk68", "inflated", cache
+                    subject, subject_out, MODULE.ATLAS_SPECS["dk68"], "inflated", cache
                 )
                 MODULE.qc_input_integrity(
-                    subject, subject_out, "destrieux", "inflated", cache
+                    subject, subject_out, MODULE.ATLAS_SPECS["destrieux"], "inflated", cache
                 )
                 MODULE.qc_input_integrity(
-                    subject, subject_out, "dk68", "inflated", cache
+                    subject, subject_out, MODULE.ATLAS_SPECS["dk68"], "inflated", cache
                 )
                 self.assertEqual(hash_file.call_count, 6)
 
                 (subject / "surf" / "lh.inflated").write_bytes(b"changed surface")
                 changed = MODULE.qc_input_integrity(
-                    subject, subject_out, "dk68", "inflated", cache
+                    subject, subject_out, MODULE.ATLAS_SPECS["dk68"], "inflated", cache
                 )
                 self.assertEqual(hash_file.call_count, 7)
 
@@ -1380,7 +1384,7 @@ region_b 11 21 31 2.6 0.2 0.3 0.4 5.0 6.0
             existing_image = subject_out / "qc" / "schaefer100_pial_4view.png"
             existing_image.write_bytes(b"png")
             current = MODULE.write_qc_artifact_metadata(
-                subject, subject_out, image, "dk68", "inflated", 150, "run-1"
+                subject, subject_out, image, MODULE.ATLAS_SPECS["dk68"], "inflated", 150, "run-1"
             )
             records = [(
                 subject,
@@ -1393,7 +1397,7 @@ region_b 11 21 31 2.6 0.2 0.3 0.4 5.0 6.0
                     "qc_artifacts": [current],
                 },
             )]
-            MODULE.write_qc_report(output, records, ("dk68",))
+            MODULE.write_qc_report(output, records, selected_atlases(("dk68",)))
             report = (output / "all_qc.html").read_text(encoding="utf-8")
             self.assertIn("per_subject/sub-01/qc/dk68_inflated_4view.png", report)
             self.assertNotIn("schaefer100_pial_4view.png", report)
@@ -1404,7 +1408,7 @@ region_b 11 21 31 2.6 0.2 0.3 0.4 5.0 6.0
             self.assertNotIn("<select", report)
 
             image.write_bytes(b"changed")
-            MODULE.write_qc_report(output, records, ("dk68",))
+            MODULE.write_qc_report(output, records, selected_atlases(("dk68",)))
             refreshed = (output / "all_qc.html").read_text(encoding="utf-8")
             self.assertNotIn("dk68_inflated_4view.png", refreshed)
 

@@ -44,7 +44,7 @@ OUTPUT/
 | `global_measures_long.tsv` | eTIV、BrainSegVol 和 surface holes 等 `# Measure` 记录 |
 | `wide/ATLAS.tsv` | 每个分区一张宽表，每位受试者一行 |
 | `all_features_wide.tsv` | 所选分区的九类皮层指标、皮层下结构体积和全局指标；不复制 `aseg.stats` 的其他非体积列 |
-| `atlas_manifest.tsv` | 分区定义、预期区域数、区域名称 SHA-256 和完整受试者数 |
+| `atlas_manifest.tsv` | 分区定义、annot 路径、左右预期区域数和完整受试者数；curated 分区另记录区域名称 SHA-256 |
 | `run_metadata.json` | run ID、时间、参数、软件版本、分区校验值和输入指纹 |
 
 ## `cortical_long.tsv` 示例
