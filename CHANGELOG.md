@@ -4,15 +4,14 @@ All notable changes to FSHarvest are recorded here. The project follows semantic
 
 ## Unreleased
 
+## 1.0.0 - 2026-09-07
+
+- Reuse unchanged QC integrity results within a run, avoid repeated deep validation during aggregation, and remove obsolete cache migration paths.
 - Add a reproducible DK68/Destrieux native-versus-recomputed statistics validation harness and record exact agreement across 19,440 real-data comparisons.
 - Preserve pre-existing output files by cleaning only uniquely named, run-owned work directories, and reject input/output nesting in either direction.
 - Track FSHarvest-created exports by relative path and SHA-256 so identical full reruns reuse cache while changed destinations remain conflict-protected.
 - Record checksums for current wide tables and archive a preceding run's no-longer-selected atlas tables instead of leaving them in `wide/`.
 - Clarify that cohort tables represent the current command scope and document subject-aware regional join keys.
-
-## 1.0.0rc1
-
-- Release candidate; not a stable public release.
 - Add Schaefer 100–1000, Glasser360, Economo, and Vos de Wael 300 support using pinned atlas assets.
 - Add resumable private annotation/statistics caches and opt-in conflict-safe export to FreeSurfer subjects.
 - Add streamed cohort aggregation, provenance metadata, and four-view QC rendering/reporting.

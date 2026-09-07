@@ -311,12 +311,12 @@ region_b 11 21 31 2.6 0.2 0.3 0.4 5.0 6.0
             (subject / "scripts").mkdir()
             (subject / "scripts" / "recon-all.done").touch()
             args = (subject, output, root, ("dk68",), "atlas", {}, root, "FS-7", "template", False)
-            with patch.object(MODULE, "TOOL_VERSION", "1.0.0rc0"):
+            with patch.object(MODULE, "TOOL_VERSION", "0.9.0"):
                 first = MODULE.extract_subject(*args)
             second = MODULE.extract_subject(*args)
-            self.assertEqual(first["cache_produced_by_tool_version"], "1.0.0rc0")
+            self.assertEqual(first["cache_produced_by_tool_version"], "0.9.0")
             self.assertEqual(second["cache_hit"], 1)
-            self.assertEqual(second["cache_produced_by_tool_version"], "1.0.0rc0")
+            self.assertEqual(second["cache_produced_by_tool_version"], "0.9.0")
             self.assertEqual(
                 second["cache_last_validated_by_tool_version"], MODULE.TOOL_VERSION
             )
@@ -653,18 +653,6 @@ region_b 11 21 31 2.6 0.2 0.3 0.4 5.0 6.0
                 b"new-projection",
             )
 
-    def test_legacy_annotations_cache_is_imported_into_label(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            subject_out = Path(tmp) / "per_subject" / "sub-01"
-            legacy = subject_out / "annotations" / "lh.schaefer100.annot"
-            legacy.parent.mkdir(parents=True)
-            legacy.write_bytes(b"legacy")
-            path = MODULE.output_annotation_path(
-                subject_out, MODULE.ATLAS_SPECS["schaefer100"], "lh"
-            )
-            self.assertEqual(path, subject_out / "label" / "lh.schaefer100.annot")
-            self.assertEqual(path.read_bytes(), b"legacy")
-
     def test_newer_tool_cache_is_not_reused_by_older_tool(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -702,8 +690,6 @@ region_b 11 21 31 2.6 0.2 0.3 0.4 5.0 6.0
             ), patch.object(MODULE, "TOOL_VERSION", "1.2.0"):
                 first = MODULE.extract_subject(*args, work_subjects=root / "work")
             subject_out = output / "per_subject" / "sub-01"
-            (subject_out / "label").rename(subject_out / "annotations")
-
             with patch.object(MODULE, "ensure_link", lambda *_args: None), patch.object(
                 MODULE, "run_command", fake_run
             ):
@@ -714,7 +700,7 @@ region_b 11 21 31 2.6 0.2 0.3 0.4 5.0 6.0
             self.assertEqual(second["cache_hit"], 0)
             self.assertTrue((subject_out / "label" / "lh.schaefer100.annot").is_file())
 
-    def test_legacy_external_cache_without_artifact_checksums_is_recomputed(self):
+    def test_external_cache_without_artifact_checksums_is_recomputed(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             subject = root / "sub-01"
@@ -748,7 +734,7 @@ region_b 11 21 31 2.6 0.2 0.3 0.4 5.0 6.0
             )
             with patch.object(MODULE, "ensure_link", lambda *_args: None), patch.object(
                 MODULE, "run_command", fake_run
-            ), patch.object(MODULE, "TOOL_VERSION", "1.0.0rc0"):
+            ), patch.object(MODULE, "TOOL_VERSION", "0.9.0"):
                 MODULE.extract_subject(*args, work_subjects=root / "work")
 
             subject_out = output / "per_subject" / "sub-01"
@@ -795,17 +781,17 @@ region_b 11 21 31 2.6 0.2 0.3 0.4 5.0 6.0
             first = MODULE.export_subject_artifacts(
                 subject, subject_out, ("dk68", "schaefer100")
             )
-            migrated = MODULE.managed_exports_from_status(
-                subject, subject_out, {"exported_paths": first["exported_paths"]}
+            managed = MODULE.managed_exports_from_status(
+                subject, subject_out, {"managed_exports": first["managed_exports"]}
             )
             second = MODULE.export_subject_artifacts(
                 subject,
                 subject_out,
                 ("dk68", "schaefer100"),
-                managed_exports=migrated,
+                managed_exports=managed,
             )
             self.assertEqual(first["exported_files"], 4)
-            self.assertEqual(len(migrated), 4)
+            self.assertEqual(len(managed), 4)
             self.assertEqual(second["exported_files"], 0)
             self.assertEqual(second["existing_export_files"], 4)
 
@@ -1154,7 +1140,7 @@ region_b 11 21 31 2.6 0.2 0.3 0.4 5.0 6.0
             self.assertEqual(len(metadata["archived_wide_tables"]), 1)
             self.assertTrue((output / metadata["archived_wide_tables"][0]).is_file())
 
-    def test_aggregate_rejects_output_changed_after_extraction(self):
+    def test_aggregate_does_not_repeat_deep_subject_validation(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             subject = root / "sub-01"
@@ -1169,25 +1155,23 @@ region_b 11 21 31 2.6 0.2 0.3 0.4 5.0 6.0
                     subject, output, root, ("dk68",), "atlas", {}, root,
                     "FS-7", "template", False, run_id="run-1",
                 )
-            cortical = output / "per_subject" / "sub-01" / "cortical.tsv"
-            cortical.write_text(
-                cortical.read_text(encoding="utf-8").replace("\t2.5\t", "\t2.6\t", 1),
-                encoding="utf-8",
-            )
-            non_ok = MODULE.aggregate(
-                output,
-                [subject],
-                ("dk68",),
-                {"tool": "test", "tool_version": MODULE.TOOL_VERSION, "run_id": "run-1"},
-            )
-            status = json.loads(
-                (output / "per_subject" / "sub-01" / "status.json").read_text(encoding="utf-8")
-            )
-            self.assertEqual(non_ok, {"sub-01"})
-            self.assertEqual(status["status"], "PARTIAL")
-            self.assertIn("checksums", status["errors"])
-            self.assertEqual(MODULE.read_tsv(output / "cortical_long.tsv"), [])
-            self.assertEqual(MODULE.read_tsv(output / "wide" / "dk68.tsv"), [])
+            with patch.object(
+                MODULE,
+                "validate_cached_subject_outputs",
+                side_effect=AssertionError("aggregate must not revalidate"),
+            ):
+                non_ok = MODULE.aggregate(
+                    output,
+                    [subject],
+                    ("dk68",),
+                    {
+                        "tool": "test",
+                        "tool_version": MODULE.TOOL_VERSION,
+                        "run_id": "run-1",
+                    },
+                )
+            self.assertEqual(non_ok, set())
+            self.assertEqual(len(MODULE.read_tsv(output / "cortical_long.tsv")), 68)
 
     def test_main_happy_path_and_fatal_status_are_aggregated(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -1344,6 +1328,41 @@ region_b 11 21 31 2.6 0.2 0.3 0.4 5.0 6.0
                 with self.assertRaisesRegex(RuntimeError, "QC plots require"):
                     MODULE.main(argv)
             self.assertFalse(output.exists())
+
+    def test_qc_integrity_cache_hashes_unchanged_surfaces_once(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            subject = root / "inputs" / "sub-01"
+            subject_out = root / "output" / "per_subject" / subject.name
+            for hemi in MODULE.HEMISPHERES:
+                (subject / "surf").mkdir(parents=True, exist_ok=True)
+                (subject / "label").mkdir(exist_ok=True)
+                (subject / "surf" / f"{hemi}.inflated").write_bytes(b"surface")
+                (subject / "label" / f"{hemi}.aparc.annot").write_bytes(b"dk")
+                (subject / "label" / f"{hemi}.aparc.a2009s.annot").write_bytes(
+                    b"destrieux"
+                )
+
+            cache: MODULE.IntegrityCache = {}
+            with patch.object(MODULE, "sha256", wraps=MODULE.sha256) as hash_file:
+                dk = MODULE.qc_input_integrity(
+                    subject, subject_out, "dk68", "inflated", cache
+                )
+                MODULE.qc_input_integrity(
+                    subject, subject_out, "destrieux", "inflated", cache
+                )
+                MODULE.qc_input_integrity(
+                    subject, subject_out, "dk68", "inflated", cache
+                )
+                self.assertEqual(hash_file.call_count, 6)
+
+                (subject / "surf" / "lh.inflated").write_bytes(b"changed surface")
+                changed = MODULE.qc_input_integrity(
+                    subject, subject_out, "dk68", "inflated", cache
+                )
+                self.assertEqual(hash_file.call_count, 7)
+
+            self.assertNotEqual(dk["lh_surface"], changed["lh_surface"])
 
     def test_qc_report_uses_only_current_validated_images(self):
         with tempfile.TemporaryDirectory() as tmp:

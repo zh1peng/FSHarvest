@@ -34,7 +34,7 @@ from typing import Any, Iterable, Iterator, Optional
 from urllib.parse import quote
 
 
-TOOL_VERSION = "1.0.0rc1"
+TOOL_VERSION = "1.0.0"
 CACHE_SCHEMA_VERSION = 1
 OUTPUT_SCHEMA_VERSION = 1
 TOOL_NAME = "FSHarvest"
@@ -463,8 +463,23 @@ def load_region_schema(atlas_dir: Path, atlas_keys: tuple[str, ...]) -> dict[str
     return result
 
 
-def file_integrity(path: Path) -> dict[str, Any]:
-    return {"size": path.stat().st_size, "sha256": sha256(path)}
+IntegrityCache = dict[Path, tuple[tuple[int, int, int], dict[str, Any]]]
+
+
+def file_integrity(
+    path: Path, cache: Optional[IntegrityCache] = None
+) -> dict[str, Any]:
+    stat = path.stat()
+    signature = (stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns)
+    cache_key = path.resolve()
+    if cache is not None:
+        cached = cache.get(cache_key)
+        if cached is not None and cached[0] == signature:
+            return cached[1]
+    integrity = {"size": stat.st_size, "sha256": sha256(path)}
+    if cache is not None:
+        cache[cache_key] = (signature, integrity)
+    return integrity
 
 
 def output_artifact_integrity(subject_out: Path) -> dict[str, dict[str, Any]]:
@@ -577,13 +592,7 @@ def reusable_subject_artifacts(
 
 
 def output_annotation_path(subject_out: Path, spec: AtlasSpec, hemi: str) -> Path:
-    """Return the canonical cached annotation path, importing a legacy cache if needed."""
-    filename = f"{hemi}.{spec.stats_stem}.annot"
-    canonical = subject_out / "label" / filename
-    legacy = subject_out / "annotations" / filename
-    if not canonical.is_file() and legacy.is_file():
-        atomic_copy_file(legacy, canonical)
-    return canonical
+    return subject_out / "label" / f"{hemi}.{spec.stats_stem}.annot"
 
 
 def external_artifact_integrity(
@@ -821,19 +830,6 @@ def managed_exports_from_status(
                 # It remains excluded from scientific inputs; export validation will
                 # recreate a missing copy or reject a conflicting one.
                 managed[key] = expected
-    legacy_paths = status.get("exported_paths")
-    if not isinstance(legacy_paths, list):
-        return managed
-    for raw_path in legacy_paths:
-        if not isinstance(raw_path, str):
-            continue
-        destination = Path(raw_path)
-        key = managed_export_key(subject_dir, destination)
-        if key is None or key in managed:
-            continue
-        cached_source = subject_out / Path(key)
-        if files_identical(destination, cached_source):
-            managed[key] = file_integrity(destination)
     return managed
 
 
@@ -1464,11 +1460,6 @@ def extract_subject(
                 subject_out, previous, atlas_keys, atlas_region_hashes
             )
             if not cache_validation_errors:
-                for key in atlas_keys:
-                    spec = ATLAS_SPECS[key]
-                    if spec.kind == "external":
-                        for hemi in HEMISPHERES:
-                            output_annotation_path(subject_out, spec, hemi)
                 for key in (
                     "qc_status", "qc_errors", "qc_artifacts", "export_status", "exported_files",
                     "existing_export_files", "exported_paths", "existing_export_paths",
@@ -1479,7 +1470,6 @@ def extract_subject(
                 previous["cache_hit"] = 1
                 previous["cache_last_validated_by_tool_version"] = TOOL_VERSION
                 previous["runtime_seconds"] = round(time.time() - start, 3)
-                previous["output_artifacts"] = output_artifact_integrity(subject_out)
                 atomic_write_text(
                     status_path, json.dumps(previous, indent=2, ensure_ascii=False) + "\n"
                 )
@@ -1794,13 +1784,21 @@ def qc_annotation_path(subject_dir: Path, subject_out: Path, atlas: str, hemi: s
 
 
 def qc_input_integrity(
-    subject_dir: Path, subject_out: Path, atlas: str, surface: str
+    subject_dir: Path,
+    subject_out: Path,
+    atlas: str,
+    surface: str,
+    integrity_cache: Optional[IntegrityCache] = None,
 ) -> dict[str, dict[str, Any]]:
     paths: dict[str, Path] = {}
     for hemi in HEMISPHERES:
         paths[f"{hemi}_surface"] = subject_dir / "surf" / f"{hemi}.{surface}"
         paths[f"{hemi}_annotation"] = qc_annotation_path(subject_dir, subject_out, atlas, hemi)
-    return {name: file_integrity(path) for name, path in paths.items() if path.is_file()}
+    return {
+        name: file_integrity(path, integrity_cache)
+        for name, path in paths.items()
+        if path.is_file()
+    }
 
 
 def write_qc_artifact_metadata(
@@ -1811,6 +1809,7 @@ def write_qc_artifact_metadata(
     surface: str,
     dpi: int,
     run_id: str,
+    integrity_cache: Optional[IntegrityCache] = None,
 ) -> dict[str, Any]:
     artifact = {
         "tool_version": TOOL_VERSION,
@@ -1820,7 +1819,9 @@ def write_qc_artifact_metadata(
         "dpi": dpi,
         "image": image_path.name,
         "image_integrity": file_integrity(image_path),
-        "input_integrity": qc_input_integrity(subject_dir, subject_out, atlas, surface),
+        "input_integrity": qc_input_integrity(
+            subject_dir, subject_out, atlas, surface, integrity_cache
+        ),
     }
     sidecar = Path(str(image_path) + ".json")
     atomic_write_text(sidecar, json.dumps(artifact, indent=2, ensure_ascii=False) + "\n")
@@ -1828,7 +1829,11 @@ def write_qc_artifact_metadata(
 
 
 def valid_qc_artifacts(
-    subject: Path, base: Path, summary: dict[str, Any], atlas_keys: tuple[str, ...]
+    subject: Path,
+    base: Path,
+    summary: dict[str, Any],
+    atlas_keys: tuple[str, ...],
+    integrity_cache: Optional[IntegrityCache] = None,
 ) -> list[tuple[Path, str, str]]:
     valid: list[tuple[Path, str, str]] = []
     for artifact in summary.get("qc_artifacts", []):
@@ -1851,7 +1856,9 @@ def valid_qc_artifacts(
             continue
         if not image_path.is_file() or artifact.get("image_integrity") != file_integrity(image_path):
             continue
-        current_inputs = qc_input_integrity(subject, base, atlas, surface)
+        current_inputs = qc_input_integrity(
+            subject, base, atlas, surface, integrity_cache
+        )
         if len(current_inputs) != 4 or artifact.get("input_integrity") != current_inputs:
             continue
         valid.append((image_path, atlas, surface))
@@ -1862,11 +1869,12 @@ def write_qc_report(
     output_dir: Path,
     records: list[tuple[Path, Path, dict[str, Any]]],
     atlas_keys: tuple[str, ...],
+    integrity_cache: Optional[IntegrityCache] = None,
 ) -> None:
     atlas_images: dict[str, dict[str, list[tuple[Path, str]]]] = {}
     for subject, base, summary in records:
         for image_path, atlas, surface in valid_qc_artifacts(
-            subject, base, summary, atlas_keys
+            subject, base, summary, atlas_keys, integrity_cache
         ):
             atlas_images.setdefault(atlas, {}).setdefault(subject.name, []).append((image_path, surface))
 
@@ -2094,6 +2102,7 @@ def aggregate(
     atlas_keys: tuple[str, ...],
     run_metadata: dict[str, Any],
     atlas_region_hashes: Optional[dict[str, str]] = None,
+    qc_integrity_cache: Optional[IntegrityCache] = None,
 ) -> set[str]:
     atlas_region_hashes = atlas_region_hashes or {}
     stale_wide_plans = stale_wide_archive_plans(output_dir, atlas_keys)
@@ -2128,14 +2137,7 @@ def aggregate(
             summary["errors"] = " | ".join(filter(None, (existing, "Missing outputs: " + ", ".join(missing))))
         has_current_artifacts = isinstance(summary.get("output_artifacts"), dict)
         if current_run and not missing and has_current_artifacts:
-            table_errors = validate_cached_subject_outputs(
-                base, summary, atlas_keys, atlas_region_hashes
-            )
-            if table_errors:
-                summary["status"] = "PARTIAL"
-                existing = str(summary.get("errors", "")).strip()
-                summary["errors"] = " | ".join(filter(None, (existing, *table_errors)))
-            elif summary.get("status") == "OK":
+            if summary.get("status") == "OK":
                 data_records.append((subject, base, summary))
         elif current_run and not missing:
             if summary.get("status") != "FAILED":
@@ -2275,7 +2277,7 @@ def aggregate(
             "lh_region_sha256", "rh_region_sha256", "observed_subjects_complete",
         ],
     )
-    write_qc_report(output_dir, records, atlas_keys)
+    write_qc_report(output_dir, records, atlas_keys, qc_integrity_cache)
     archived_wide_tables = []
     for source, destination in stale_wide_plans:
         destination.parent.mkdir(parents=True, exist_ok=True)
@@ -2370,6 +2372,7 @@ def _main(argv: Optional[list[str]], resources: RunResources) -> int:
     if args.qc_plots and unselected_qc:
         raise ValueError("--qc-atlases must be included in --atlases: " + ", ".join(unselected_qc))
     render_subject_function: Any = None
+    qc_integrity_cache: IntegrityCache = {}
     if args.qc_plots:
         try:
             from fs_render_qc import render_subject as render_subject_function
@@ -2545,6 +2548,7 @@ def _main(argv: Optional[list[str]], resources: RunResources) -> int:
                             args.qc_surface,
                             args.qc_dpi,
                             run_id,
+                            qc_integrity_cache,
                         )
                     )
                 qc_status, qc_errors = "OK", ""
@@ -2595,7 +2599,14 @@ def _main(argv: Optional[list[str]], resources: RunResources) -> int:
         "qc_dpi": args.qc_dpi if args.qc_plots else None,
     }
     failed_subjects.update(
-        aggregate(output_root, subjects, atlas_keys, run_metadata, atlas_region_hashes)
+        aggregate(
+            output_root,
+            subjects,
+            atlas_keys,
+            run_metadata,
+            atlas_region_hashes,
+            qc_integrity_cache,
+        )
     )
     failures = len(failed_subjects)
     print(f"Finished: {len(subjects) - failures} OK, {failures} non-OK. Output: {output_root}", flush=True)

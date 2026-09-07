@@ -25,7 +25,7 @@
 它不等同于对 `mri_surf2surf` 分区投影本身的验证。仓库中的
 `validation/validate_builtin_recompute.py` 可以重复执行完整检查。
 
-## 1.0.0rc1 的检查结果
+## 1.0.0 的检查结果
 
 本地回归测试共 45 项，并通过 Python 3.12、Ruff 和 mypy 检查。在 `linux212` 上还完成了：
 

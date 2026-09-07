@@ -60,10 +60,8 @@ fsharvest --version
 当前版本输出为：
 
 ```text
-fsharvest 1.0.0rc1
+fsharvest 1.0.0
 ```
-
-`rc1` 表示第一个候选发布版，还不是 1.0.0 正式版。
 
 ## 退出码
 

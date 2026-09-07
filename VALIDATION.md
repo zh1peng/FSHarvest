@@ -1,11 +1,29 @@
-# Validation report — FSHarvest 1.0.0rc1
+# Validation report — FSHarvest 1.0.0
 
-Date: 2026-09-05
+Date: 2026-09-07
+
+## 1.0.0 final release verification
+
+The final 1.0.0 source passed all 45 regression tests on Windows/Python 3.12 and
+`linux212`/Python 3.10. Ruff and mypy passed for the extraction, QC, and validation
+programs; Bash syntax and ShellCheck passed for all shell entry points. The VitePress site
+built successfully. A fresh temporary-prefix installation passed `install.sh --check`,
+installed under `lib/fsharvest/1.0.0`, and returned `fsharvest 1.0.0` in a clean
+environment.
+
+A final real-data smoke test used FreeSurfer 7.4.1 and a writable temporary wrapper around
+one CHCP_FS72 reconstruction produced by FreeSurfer 7.2.0. DK68 and Schaefer100 extraction,
+100-DPI four-view QC, and explicit export completed 1/1 `OK` in 41.29 seconds, producing
+two PNGs and four exported files. Repeating the identical full command returned
+`cache_hit=1`, reported `0 new, 4 existing` exports, retained `qc_status=OK`, and left the
+extraction log unchanged, confirming that projection and anatomical statistics were not
+recomputed. A pre-existing `OUTPUT/work/user_notes.txt` remained unchanged and no
+run-owned temporary work directory remained. All generated data stayed under the temporary
+release-validation directory.
 
 ## Built-in atlas read-versus-recompute equivalence
 
-The reproducible harness is `validation/validate_builtin_recompute.py` (SHA-256
-`d272e1f4acf5b7b433c58645fbd475a4b41a06608f3c4d1e141006f8bf35e6cb`). It compares
+The reproducible harness is `validation/validate_builtin_recompute.py`. It compares
 FSHarvest's built-in-atlas path, which reads the existing `aparc.stats` and
 `aparc.a2009s.stats`, with a fresh invocation of the same recomputation command used for
 external atlases:
@@ -39,11 +57,7 @@ source reconstructions.
 
 ## 2026-09-05 round-two safety verification
 
-This verification used the current working tree based on commit
-`48a95c47877696f196647c9774a510395190f2ee`. The tested source hashes were:
-
-- `fs_extract_all.py`: `758c10264108391494e4afe7a4b52fd86c90d4fbb85000f729928c1b7cd6f8bf`
-- `tests/test_fs_extract_all.py`: `bf31eefafc1b1be38f02192cf7aa325e1b12ae67cc9db6682e7b3620125c60c7`
+This verification covers the changes committed as `30ba892`.
 
 All 45 regression tests passed locally and on `linux212`; Ruff and mypy also passed
 locally. The new checks cover pre-existing `OUTPUT/work` preservation on successful,
@@ -54,7 +68,7 @@ join keys.
 
 A staged install under a fresh temporary prefix passed `install.sh --check`; invoking
 `fsharvest --version` with an otherwise clean environment and only that prefix on `PATH`
-returned `fsharvest 1.0.0rc1`.
+returned `fsharvest 1.0.0`.
 
 A real FreeSurfer 7.4.1 run used a writable wrapper around the first CHCP_FS72 subject with
 DK68, Schaefer100, and `--export-to-freesurfer`. The first run exported four files. The
@@ -70,14 +84,9 @@ contained one subject, `cortical_long.tsv` contained 68 DK68 rows, and the prece
 Destrieux wide table moved to `archive/PREVIOUS_RUN_ID/wide/`. The pre-existing `work/`
 file again remained unchanged.
 
-## 1.0.0rc1 remediation verification
+## Remediation verification
 
-This verification used the current uncommitted remediation working tree based on commit
-`43e8760223b036c9cd4de513ef6d2e5a711e2b23`. It is evidence for the candidate changes,
-not a release-commit attestation. The tested source hashes were:
-
-- `fs_extract_all.py`: `83e109f8990349a5390ae7acd9a7ef0f17f9c6b43f25609b6549da58cc47f5b4`
-- `fs_render_qc.py`: `39763fd0bfbf5aed4a39bf646c800b03c345a67979ea69aa84a1c3f68c23b31d`
+This verification covers the remediation committed as `f22cb4d`.
 
 On `linux212`, all 40 tests passed. Bash syntax checks and a staged immutable-prefix install,
 `--check`, and `--uninstall` passed. Ruff and mypy passed locally; those modules were not
@@ -125,13 +134,13 @@ by a separate `mris_anatomical_stats` invocation.
 - The new-atlas run contained no non-finite cortical measurements; `all_features_wide.tsv` contained 10 subjects and 11,000 columns.
 - All four new atlases rendered successfully as compact four-view PNGs for a real subject at 100 DPI; 52.68 seconds total and maximum reported RSS 912,428 KiB in the single sequential renderer process.
 - Headless integrated DK68 four-view rendering: passed; the compact PNG was 949×150 pixels (84,258 bytes), with 13.81 seconds elapsed and maximum reported RSS 791,852 KiB at 100 DPI on a warm filesystem cache.
-- Historical baseline only: subject-level external annotation/statistics reuse was tested in the pre-remediation code. In 1.0.0rc1, only fully validated annotations may be reused; subject-level statistics without controlled FSHarvest provenance are recalculated.
-- Output annotations now use `per_subject/SUBJECT/label/`; legacy `annotations/` caches are imported without deleting the old files.
+- Historical baseline only: subject-level external annotation/statistics reuse was tested in the pre-remediation code. In 1.0.0, only fully validated annotations may be reused; subject-level statistics without controlled FSHarvest provenance are recalculated.
+- Output annotations use `per_subject/SUBJECT/label/`.
 - `--export-to-freesurfer` is disabled by default. Unit coverage verifies validated annotation/stat export, idempotent repeat export, and refusal to overwrite a conflicting subject file.
 - Real Schaefer100 validation used a writable `/tmp` wrapper around `sub-3001_T1w_cropped`; the NAS reconstruction remained untouched. The default cold run wrote annotations to `OUTPUT/per_subject/SUBJECT/label/` and completed in 14.42 seconds with 555,024 KiB maximum RSS.
 - Enabling `--export-to-freesurfer` copied four files (left/right annotation and stats) into the temporary subject in 0.14 seconds with 23,296 KiB maximum RSS. Source/output SHA-256 values matched; an immediate repeated export reported `0 new, 4 existing` and did not overwrite them.
-- A fresh-prefix `install.sh` installation of the pre-release baseline exposed the export option in `--help` and retained the bundled atlas manifest.
-- A pre-release run over the first 10 CHCP subjects with DK68, Schaefer400, Glasser360, Economo, and Vos de Wael 300 completed 10/10 `OK` in 267 seconds. It produced 12,140 cortical rows with exact atlas totals (680, 4,000, 3,600, 860, and 3,000 respectively) and 80 external annotations under the new per-subject `label/` directories. The 80 legacy `annotations/` files remained untouched, export was false, and no normalized external-atlas files appeared in the NAS subjects.
+- A fresh-prefix `install.sh` validation exposed the export option in `--help` and retained the bundled atlas manifest.
+- A validation run over the first 10 CHCP subjects with DK68, Schaefer400, Glasser360, Economo, and Vos de Wael 300 completed 10/10 `OK` in 267 seconds. It produced 12,140 cortical rows with exact atlas totals (680, 4,000, 3,600, 860, and 3,000 respectively) and 80 external annotations under the per-subject `label/` directories. Export was false, and no normalized external-atlas files appeared in the NAS subjects.
 - Real Schaefer100 extraction on one subject: cold run 17.54 seconds; unchanged rerun 0.47 seconds and 22,528 KiB maximum RSS, with no second extraction recorded.
 - `all_qc.html`: relative image paths verified, no absolute output path embedded, and atlas tabs/tab-local subject filtering verified in a browser.
 - Current-source Schaefer 100–1000 extraction (micapipe `fsaverage5` annotations, CBIG projection procedure) with four concurrent subjects: 10/10 subjects `OK`; 12:56.96 elapsed and maximum reported RSS 617,772 KiB.
@@ -142,6 +151,6 @@ by a separate `mris_anatomical_stats` invocation.
 
 This validates extraction and rendering for the environment above. It is not evidence of compatibility with every FreeSurfer release. In particular, FreeSurfer 8.x must be tested separately before being added to the supported runtime matrix. Four-view rendering is intentionally optional because full-resolution surface rendering requires substantially more memory than extraction or aggregation.
 
-## 1.0.0rc1 regression checks
+## 1.0.0 regression checks
 
-The 1.0.0rc1 release candidate separates tool/cache/output versions, rejects downgrade cache reuse, validates `aseg.stats` headers, disables unproven subject-level stats reuse, locks each output directory, removes temporary subject links, and fingerprints current-run QC images. The local regression suite contains 45 tests and passes with Ruff and mypy on Python 3.12. The verification above must be repeated on the final committed source before the 1.0.0 release tag; it does not claim that an uncommitted working tree is a stable release.
+FSHarvest 1.0.0 separates tool/cache/output versions, rejects downgrade cache reuse, validates `aseg.stats` headers, disables unproven subject-level stats reuse, locks each output directory, removes temporary subject links, and fingerprints current-run QC images. The regression suite contains 45 tests and passes with Ruff and mypy on Python 3.12.

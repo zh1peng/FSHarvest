@@ -27,7 +27,7 @@ Input FreeSurfer folders are read-only by default. Subject-specific external ann
 
 Requirements: Linux, Python 3.9+, a licensed FreeSurfer installation, and `curl` only if re-downloading atlases. Core extraction has no Python package dependencies. QC PNG rendering additionally needs NumPy, Nibabel, Matplotlib, and Pillow (`python3 -m pip install -r requirements-qc.txt`).
 
-A pre-release baseline was end-to-end tested with a FreeSurfer 7.4.1 runtime against reconstructions produced by FreeSurfer 7.2.0. FSHarvest 1.0.0rc1 is a release candidate whose integrity fixes are covered by the automated regression suite; repeat the representative-subject FreeSurfer smoke test on the exact release commit before publishing 1.0.0. Validate other FreeSurfer releases on representative subjects before study-wide use.
+FSHarvest 1.0.0 was end-to-end tested with a FreeSurfer 7.4.1 runtime against reconstructions produced by FreeSurfer 7.2.0. The automated regression suite and a representative-subject FreeSurfer smoke test cover the released source. Validate other FreeSurfer releases on representative subjects before study-wide use.
 
 ```bash
 cd /path/to/FSHarvest
@@ -230,7 +230,7 @@ The long and wide tables are aggregated as streams, keeping only one subject's f
 
 These images detect gross projection or reconstruction problems; they do not replace interactive inspection of white/pial boundaries in Freeview.
 
-For `dk68` and `destrieux`, the normal FreeSurfer subject outputs are already the final inputs: no extra subject-level `.annot` is needed or created. For external atlases, FSHarvest may reuse a subject annotation only after validating its structure, regions, and vertex count against the current surface. Subject-level `.stats` files are not trusted without controlled provenance and are recalculated by default. Generated annotation and statistics are saved under `OUTPUT/per_subject/SUBJECT/` with content hashes and reused automatically on later runs after full validation. An older output-cache `annotations/` directory is imported into the canonical `label/` directory without deleting the old files.
+For `dk68` and `destrieux`, the normal FreeSurfer subject outputs are already the final inputs: no extra subject-level `.annot` is needed or created. For external atlases, FSHarvest may reuse a subject annotation only after validating its structure, regions, and vertex count against the current surface. Subject-level `.stats` files are not trusted without controlled provenance and are recalculated by default. Generated annotation and statistics are saved under `OUTPUT/per_subject/SUBJECT/` with content hashes and reused automatically on later runs after full validation.
 
 ## Optional export to FreeSurfer subjects
 
