@@ -1,6 +1,22 @@
 # Validation report — FSHarvest
 
-Date: 2026-09-07
+Date: 2026-09-08
+
+## 1.0.2 verification
+
+All 65 tests passed on Windows/Python 3.12, including partial-subject aggregation,
+source-name preservation, missing cells, duplicate-key isolation, damaged files,
+invalid rows and current-run scope. Ruff, mypy and the VitePress documentation build
+passed.
+
+Aggregation was verified on temporary copies of saved FreeSurfer 6.0.0 outputs for
+554 subjects. All 554 subjects remained in the wide tables with their original
+`PARTIAL` status. The long tables retained 452,063 cortical rows, 24,930 aseg rows and
+12,188 global-measure rows. A known missing left-hemisphere Destrieux region produced
+an empty cell while the corresponding right-hemisphere value remained available.
+Ampersand names were preserved without generating `_and_` aliases. Per-subject TSV
+checksums were unchanged. Original outputs were not modified; FreeSurfer reconstruction,
+projection, statistics generation and QC were not rerun for this patch.
 
 ## 1.0.1 verification
 

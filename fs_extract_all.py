@@ -34,7 +34,7 @@ from typing import Any, Iterable, Iterator, Optional
 from urllib.parse import quote
 
 
-TOOL_VERSION = "1.0.1"
+TOOL_VERSION = "1.0.2"
 CACHE_SCHEMA_VERSION = 1
 OUTPUT_SCHEMA_VERSION = 1
 TOOL_NAME = "FSHarvest"
@@ -1115,7 +1115,12 @@ def validate_cortical_rows(
     if expected_region_sha256 and region_set_sha256(regions) != expected_region_sha256:
         errors.append(f"{atlas}/{hemi}: region names do not match the pinned atlas schema")
     if spec.regions and set(regions) != set(spec.region_names(hemi)):
-        errors.append(f"{atlas}/{hemi}: region names do not match the atlas definition")
+        expected_names = set(spec.region_names(hemi))
+        errors.append(
+            f"{atlas}/{hemi}: region names do not match the atlas definition; "
+            f"{len(expected_names - set(regions))} missing, "
+            f"{len(set(regions) - expected_names)} unexpected (see region_differences.tsv)"
+        )
     invalid = [
         str(row["region"])
         for row in rows
@@ -1409,6 +1414,18 @@ def resolve_atlases(inputs: Iterable[str], atlas_dir: Path, fs_home: Path) -> di
             )
         if spec.key in atlases:
             raise ValueError(f"Duplicate atlas key: {spec.key}")
+        if spec.kind == "builtin":
+            schema = json.loads((atlas_dir / "region_schema.json").read_text(encoding="utf-8"))
+            entry = schema["atlases"][spec.key]
+            names = entry.get("region_names")
+            if names is not None:
+                if (
+                    not isinstance(names, list) or not all(isinstance(name, str) for name in names)
+                    or len(set(names)) != spec.expected_total // 2
+                    or any(region_set_sha256(names) != entry[hemi] for hemi in HEMISPHERES)
+                ):
+                    raise ValueError(f"{spec.key}: region names do not match the pinned schema")
+                spec = replace(spec, regions=(tuple(names), tuple(names)))
         if spec.kind == "external":
             annotations = tuple(str(spec.annotation_path(atlas_dir, hemi).resolve()) for hemi in HEMISPHERES)
             regions = []
@@ -1840,31 +1857,74 @@ def extract_subject(
     return summary
 
 
-def iter_checked_tsv(
+def read_aggregate_table(
+    path: Path,
+    summary: dict[str, Any],
+    fields: list[str],
+    key_groups: tuple[tuple[str, ...], ...],
+    numeric_fields: tuple[str, ...],
+    integer_fields: tuple[str, ...],
+    atlases: dict[str, AtlasSpec],
+) -> tuple[list[dict[str, str]], list[str]]:
+    """Keep unambiguous rows; a damaged file must not hide other subject tables."""
+    try:
+        if not path.is_file():
+            raise RuntimeError("missing output file")
+        artifacts = summary.get("output_artifacts")
+        recorded = artifacts.get(path.name) if isinstance(artifacts, dict) else None
+        if recorded != file_integrity(path):
+            raise RuntimeError("missing or mismatched output checksum")
+        with path.open(encoding="utf-8", newline="") as handle:
+            reader = csv.DictReader(handle, delimiter="\t", strict=True)
+            headers = reader.fieldnames or []
+            missing = sorted(set(fields) - set(headers))
+            if missing or len(set(headers)) != len(headers):
+                raise RuntimeError("invalid table header; missing columns: " + ", ".join(missing))
+            rows = list(reader)
+    except (OSError, UnicodeError, csv.Error, RuntimeError) as exc:
+        return [], [f"{path.name}: excluded file: {exc}"]
+
+    errors = []
+    rejected = set()
+    keys: dict[tuple[str, ...], dict[tuple[str, ...], list[int]]] = {group: {} for group in key_groups}
+    for index, row in enumerate(rows):
+        # Include invalid numeric rows in duplicate detection so a conflicting
+        # valid-looking copy cannot silently win.
+        for group in key_groups:
+            if all(isinstance(row.get(field), str) and row[field].strip() for field in group):
+                key = tuple(row[field] for field in group)
+                keys[group].setdefault(key, []).append(index)
+        reason = ""
+        if None in row or any(row.get(field) is None for field in fields):
+            reason = "malformed TSV row"
+        elif any(row[field] != str(summary.get(field, "")) for field in ("subject_id", "folder_id", "subject_path", "fs_version")):
+            reason = "subject metadata mismatch"
+        elif any(not row[field].strip() for group in key_groups for field in group):
+            reason = "empty key"
+        elif path.name == "cortical.tsv" and (row["atlas"] not in atlases or row["hemisphere"] not in HEMISPHERES):
+            reason = "unexpected atlas/hemisphere"
+        elif any(not is_finite_number(parse_number(row[field])) for field in numeric_fields):
+            reason = "non-numeric or non-finite value"
+        elif any(not is_nonnegative_integer(parse_number(row[field])) for field in integer_fields):
+            reason = "invalid integer value"
+        if reason:
+            rejected.add(index)
+            errors.append(f"{path.name}: excluded record {index + 1}: {reason}")
+    for group, grouped in keys.items():
+        for key, indices in grouped.items():
+            if len(indices) > 1:
+                rejected.update(indices)
+                errors.append(f"{path.name}: excluded duplicate {','.join(group)} key {key}")
+    return [row for index, row in enumerate(rows) if index not in rejected], errors
+
+
+def iter_aggregate_tsv(
     records: list[tuple[Path, Path, dict[str, Any]]],
     filename: str,
-    required_fields: list[str],
-    key_fields: tuple[str, ...],
-    label: str,
 ) -> Iterator[dict[str, str]]:
-    for subject, base, _summary in records:
-        path = base / filename
-        if not path.is_file():
-            continue
-        seen = set()
-        with path.open("r", encoding="utf-8", newline="") as handle:
-            reader = csv.DictReader(handle, delimiter="\t")
-            missing = [field for field in required_fields if field not in (reader.fieldnames or [])]
-            if missing:
-                raise RuntimeError(f"{path} is missing columns: {', '.join(missing)}")
-            for row in reader:
-                if row.get("folder_id") != subject.name:
-                    raise RuntimeError(f"Unexpected folder_id in {path}: {row.get('folder_id')}")
-                key = tuple(row[field] for field in key_fields)
-                if key in seen:
-                    raise RuntimeError(f"Duplicate {label} key in {path}: {key}")
-                seen.add(key)
-                yield row
+    for _subject, base, summary in records:
+        for row in read_tsv(base / filename):
+            yield {**row, "status": summary.get("status", ""), "errors": summary.get("errors", "")}
 
 
 def qc_annotation_path(subject_dir: Path, subject_out: Path, spec: AtlasSpec, hemi: str) -> Path:
@@ -2194,20 +2254,48 @@ def aggregate(
     atlas_region_hashes: Optional[dict[str, str]] = None,
     qc_integrity_cache: Optional[IntegrityCache] = None,
 ) -> set[str]:
+    # Stage only accepted rows once, so long and wide outputs use identical data
+    # without holding the entire cohort in memory or changing per-subject TSVs.
+    with tempfile.TemporaryDirectory(prefix=".fsharvest-aggregate-", dir=output_dir) as temporary:
+        return aggregate_staged(
+            output_dir, subjects, atlases, run_metadata, Path(temporary),
+            atlas_region_hashes, qc_integrity_cache,
+        )
+
+
+def aggregate_staged(
+    output_dir: Path,
+    subjects: list[Path],
+    atlases: dict[str, AtlasSpec],
+    run_metadata: dict[str, Any],
+    staging_dir: Path,
+    atlas_region_hashes: Optional[dict[str, str]] = None,
+    qc_integrity_cache: Optional[IntegrityCache] = None,
+) -> set[str]:
     atlas_region_hashes = atlas_region_hashes or {}
     stale_wide_plans = stale_wide_archive_plans(output_dir, atlases)
     summaries: list[dict[str, Any]] = []
     records: list[tuple[Path, Path, dict[str, Any]]] = []
     data_records: list[tuple[Path, Path, dict[str, Any]]] = []
     non_ok_subjects: set[str] = set()
-    required_files = ("cortical.tsv", "aseg.tsv", "global.tsv")
+    metadata_fields = ["subject_id", "folder_id", "subject_path", "fs_version"]
+    cortical_fields = metadata_fields + ["atlas", "hemisphere", "region"] + list(CORTICAL_COLUMNS)
+    aseg_fields = metadata_fields + list(ASEG_COLUMNS)
+    global_fields = metadata_fields + ["measure", "metric", "description", "value", "unit"]
+    table_specs = (
+        ("cortical.tsv", cortical_fields, (("atlas", "hemisphere", "region"),), CORTICAL_COLUMNS, ("numvert",)),
+        ("aseg.tsv", aseg_fields, (("segid",), ("structure",)), tuple(field for field in ASEG_COLUMNS if field != "structure"), ("index", "segid", "nvoxels")),
+        ("global.tsv", global_fields, (("metric",), ("measure",)), ("value",), ()),
+    )
     expected_run_id = str(run_metadata.get("run_id", ""))
     for subject in subjects:
         base = output_dir / "per_subject" / subject.name
         status_path = base / "status.json"
         try:
             summary = json.loads(status_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as exc:
+            if not isinstance(summary, dict):
+                raise ValueError("status.json must contain an object")
+        except (OSError, ValueError) as exc:
             metadata = subject_metadata(subject)
             summary = {**metadata, "status": "NOT_RUN", "errors": f"Invalid or missing status.json: {exc}"}
         current_run = not expected_run_id or summary.get("run_id") == expected_run_id
@@ -2219,23 +2307,37 @@ def aggregate(
                 "run_id": expected_run_id,
                 "errors": "No status was produced for this run.",
             }
-        missing = [name for name in required_files if not (base / name).is_file()]
-        if missing and summary.get("status") != "NOT_RUN":
-            if summary.get("status") != "FAILED":
-                summary["status"] = "PARTIAL"
-            existing = str(summary.get("errors", "")).strip()
-            summary["errors"] = " | ".join(filter(None, (existing, "Missing outputs: " + ", ".join(missing))))
-        has_current_artifacts = isinstance(summary.get("output_artifacts"), dict)
-        if current_run and not missing and has_current_artifacts:
-            if summary.get("status") == "OK":
-                data_records.append((subject, base, summary))
-        elif current_run and not missing:
-            if summary.get("status") != "FAILED":
-                summary["status"] = "PARTIAL"
-            existing = str(summary.get("errors", "")).strip()
-            summary["errors"] = " | ".join(
-                filter(None, (existing, "No output integrity record was produced for this run."))
-            )
+        if current_run and summary.get("status") != "NOT_RUN":
+            staged = staging_dir / subject.name
+            aggregation_errors = []
+            for filename, fields, key_groups, numeric_fields, integer_fields in table_specs:
+                rows, errors = read_aggregate_table(
+                    base / filename, summary, fields, key_groups, numeric_fields, integer_fields, atlases
+                )
+                aggregation_errors.extend(errors)
+                write_tsv(staged / filename, rows, fields)
+            if aggregation_errors:
+                if summary.get("status") != "FAILED":
+                    summary["status"] = "PARTIAL"
+                summary["errors"] = " | ".join(dict.fromkeys(filter(None, (
+                    *str(summary.get("errors", "")).split(" | "), *aggregation_errors,
+                ))))
+            # Do not reintroduce rejected global values through wide-table metadata.
+            global_values = {}
+            for row in read_tsv(staged / "global.tsv"):
+                for field in ("measure", "metric"):
+                    global_values[row[field]] = parse_number(row["value"])
+            summary["eTIV_mm3"] = global_values.get("EstimatedTotalIntraCranialVol", global_values.get("eTIV"))
+            for hemi in HEMISPHERES:
+                holes = global_values.get(f"{hemi}SurfaceHoles")
+                summary[f"{hemi}_surface_holes"] = holes
+                summary[f"{hemi}_euler"] = (
+                    2 - 2 * int(holes)
+                    if isinstance(holes, (int, float)) and is_nonnegative_integer(holes) else None
+                )
+            eulers = [summary[f"{hemi}_euler"] for hemi in HEMISPHERES]
+            summary["euler_sum"] = sum(eulers) if all(value is not None for value in eulers) else None
+            data_records.append((subject, staged, summary))
         if summary.get("status") != "OK":
             non_ok_subjects.add(subject.name)
         if status_path.parent.is_dir():
@@ -2243,23 +2345,20 @@ def aggregate(
         summaries.append(summary)
         records.append((subject, base, summary))
 
-    cortical_fields = ["subject_id", "folder_id", "subject_path", "fs_version", "atlas", "hemisphere", "region"] + list(CORTICAL_COLUMNS)
-    aseg_fields = ["subject_id", "folder_id", "subject_path", "fs_version"] + list(ASEG_COLUMNS)
-    global_fields = ["subject_id", "folder_id", "subject_path", "fs_version", "measure", "metric", "description", "value", "unit"]
     write_tsv(
         output_dir / "cortical_long.tsv",
-        iter_checked_tsv(data_records, "cortical.tsv", cortical_fields, ("atlas", "hemisphere", "region"), "cortical"),
-        cortical_fields,
+        iter_aggregate_tsv(data_records, "cortical.tsv"),
+        cortical_fields + ["status", "errors"],
     )
     write_tsv(
         output_dir / "aseg_long.tsv",
-        iter_checked_tsv(data_records, "aseg.tsv", aseg_fields, ("segid", "structure"), "aseg"),
-        aseg_fields,
+        iter_aggregate_tsv(data_records, "aseg.tsv"),
+        aseg_fields + ["status", "errors"],
     )
     write_tsv(
         output_dir / "global_measures_long.tsv",
-        iter_checked_tsv(data_records, "global.tsv", global_fields, ("metric",), "global measure"),
-        global_fields,
+        iter_aggregate_tsv(data_records, "global.tsv"),
+        global_fields + ["status", "errors"],
     )
 
     summary_fields = [
@@ -2273,25 +2372,29 @@ def aggregate(
     ]
     write_tsv(output_dir / "subjects.tsv", summaries, summary_fields)
 
-    meta_fields = ["subject_id", "folder_id", "subject_path", "fs_version", "status", "eTIV_mm3", "lh_euler", "rh_euler", "euler_sum"]
+    meta_fields = ["subject_id", "folder_id", "subject_path", "fs_version", "status", "errors", "eTIV_mm3", "lh_euler", "rh_euler", "euler_sum"]
     atlas_feature_fields: dict[str, set[str]] = {key: set() for key in atlases}
     atlas_complete: Counter[str] = Counter()
     aseg_feature_fields: set[str] = set()
     global_feature_fields: set[str] = set()
+    observed_regions: dict[tuple[str, str], set[str]] = {
+        (atlas, hemi): set() for atlas in atlases for hemi in HEMISPHERES
+    }
     for subject, base, _summary in data_records:
-        per_atlas: Counter[str] = Counter()
+        per_atlas: Counter[tuple[str, str]] = Counter()
         if (base / "cortical.tsv").is_file():
             for row in read_tsv(base / "cortical.tsv"):
                 atlas = row["atlas"]
                 if atlas not in atlas_feature_fields:
                     continue
-                per_atlas[atlas] += 1
+                per_atlas[atlas, row["hemisphere"]] += 1
+                observed_regions[atlas, row["hemisphere"]].add(row["region"])
                 hemi = "L" if row["hemisphere"] == "lh" else "R"
                 atlas_feature_fields[atlas].update(
                     f"{hemi}_{row['region']}_{metric}" for metric in CORTICAL_COLUMNS
                 )
         for atlas in atlases:
-            if per_atlas[atlas] == atlases[atlas].expected_total:
+            if all(per_atlas[atlas, hemi] == atlases[atlas].expected_rows(hemi) for hemi in HEMISPHERES):
                 atlas_complete[atlas] += 1
         if (base / "aseg.tsv").is_file():
             aseg_feature_fields.update(
@@ -2301,6 +2404,30 @@ def aggregate(
             global_feature_fields.update(
                 f"global__{row['metric']}" for row in read_tsv(base / "global.tsv")
             )
+
+    def region_differences() -> Iterator[dict[str, Any]]:
+        for subject, base, _summary in data_records:
+            grouped: dict[tuple[str, str], set[str]] = {key: set() for key in observed_regions}
+            for row in read_tsv(base / "cortical.tsv"):
+                grouped[row["atlas"], row["hemisphere"]].add(row["region"])
+            for (atlas, hemi), names in grouped.items():
+                expected = set(atlases[atlas].region_names(hemi))
+                missing = sorted(expected - names)
+                unexpected = sorted(names - expected) if expected else []
+                absent = sorted(observed_regions[atlas, hemi] - names)
+                if missing or unexpected or absent:
+                    yield {
+                        "folder_id": subject.name, "atlas": atlas, "hemisphere": hemi,
+                        "reference": "atlas_definition" if expected else "cohort_union",
+                        "missing_expected": json.dumps(missing, ensure_ascii=False),
+                        "unexpected_names": json.dumps(unexpected, ensure_ascii=False),
+                        "absent_from_subject": json.dumps(absent, ensure_ascii=False),
+                    }
+
+    write_tsv(output_dir / "region_differences.tsv", region_differences(), [
+        "folder_id", "atlas", "hemisphere", "reference",
+        "missing_expected", "unexpected_names", "absent_from_subject",
+    ])
 
     def metadata_row(summary: dict[str, Any]) -> dict[str, Any]:
         return {field: summary.get(field) for field in meta_fields}

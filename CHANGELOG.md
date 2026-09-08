@@ -2,6 +2,13 @@
 
 All notable changes to FSHarvest are recorded here. The project follows semantic versioning once a release is tagged.
 
+## 1.0.2 - 2026-09-08
+
+- Aggregate available current-run rows from partial and failed subjects, retaining status and errors in long and wide tables.
+- Preserve source region names and report expected and within-cohort name differences without automatic normalization.
+- Isolate damaged files, malformed rows and duplicate keys instead of excluding entire subjects or aborting cohort aggregation.
+- Stage accepted rows once for consistent long/wide outputs while retaining original per-subject TSVs.
+
 ## 1.0.1 - 2026-09-07
 
 - Derive custom region counts from assigned source labels, omit FreeSurfer-skipped labels automatically, and parse region names containing spaces without shifting metrics.

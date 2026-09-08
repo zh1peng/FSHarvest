@@ -1051,8 +1051,11 @@ region_b 11 21 31 2.6 0.2 0.3 0.4 5.0 6.0
                 write_cortical(
                     subject / "stats" / "rh.aparc.stats", 34, regions=DK68_REGIONS
                 )
-                write_cortical(subject / "stats" / "lh.aparc.a2009s.stats", 74)
-                write_cortical(subject / "stats" / "rh.aparc.a2009s.stats", 74)
+                destrieux_names = json.loads(
+                    (MODULE_PATH.parent / "atlases/region_schema.json").read_text()
+                )["atlases"]["destrieux"]["region_names"]
+                write_cortical(subject / "stats" / "lh.aparc.a2009s.stats", 74, regions=destrieux_names)
+                write_cortical(subject / "stats" / "rh.aparc.a2009s.stats", 74, regions=destrieux_names)
                 write_valid_aseg(subject / "stats" / "aseg.stats")
                 (subject / "scripts").mkdir()
                 (subject / "scripts" / "recon-all.done").touch()

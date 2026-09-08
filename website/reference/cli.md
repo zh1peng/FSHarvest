@@ -70,7 +70,7 @@ fsharvest --version
 当前版本输出为：
 
 ```text
-fsharvest 1.0.1
+fsharvest 1.0.2
 ```
 
 ## 退出码
