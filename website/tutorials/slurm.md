@@ -1,4 +1,4 @@
-# 教程：在 Slurm 集群上运行
+# 在 Slurm 集群上运行
 
 FSHarvest 自带 `submit_slurm.sh` 和 `slurm/extract.sbatch`。一次作业处理一个输入目录，并把所有结果写入一个独立的输出目录。下面的脚本可直接复制，再按集群要求修改账户、分区和 FreeSurfer 路径。
 
