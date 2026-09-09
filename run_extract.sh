@@ -8,6 +8,9 @@ if [[ $# -lt 2 ]]; then
   exit 64
 fi
 
+python3 -c 'import sys; sys.path.insert(0, sys.argv[1]); from fs_extract_all import print_banner; print_banner()' "${SCRIPT_DIR}"
+echo "[$(date '+%Y-%m-%d %H:%M:%S %z')] [SETUP] Preparing FreeSurfer environment..."
+
 FS_HOME_ARG=""
 EXPECT_FS_HOME=0
 for arg in "$@"; do
@@ -59,4 +62,4 @@ for command in mri_surf2surf mris_anatomical_stats recon-all; do
   fi
 done
 
-exec python3 "${SCRIPT_DIR}/fs_extract_all.py" "$@"
+FSHARVEST_LAUNCHER_BANNER_SHOWN=1 exec python3 "${SCRIPT_DIR}/fs_extract_all.py" "$@"

@@ -1,6 +1,18 @@
 # Validation report — FSHarvest
 
-Date: 2026-09-08
+Date: 2026-09-09
+
+## 1.0.3 verification
+
+All 72 tests passed on Windows/Python 3.12. New tests cover startup metadata, phase
+ordering, announcing work before it starts, elapsed time, cache-hit messages, optional
+export/QC reporting, partial/failed summaries, interruption and clean help/version
+output. Ruff, mypy, Bash syntax and the VitePress documentation build passed.
+
+Shell-launcher checks confirmed concise help/version output and one banner before a
+FreeSurfer setup error, with the original failure exit code preserved. FreeSurfer
+commands were substituted in integration tests; no new reconstruction, projection,
+statistics-generation or real-data QC run was performed for this release.
 
 ## 1.0.2 verification
 

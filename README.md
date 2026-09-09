@@ -27,7 +27,7 @@ Input FreeSurfer folders are read-only by default. Subject-specific external ann
 
 Requirements: Linux, Python 3.9+, a licensed FreeSurfer installation, and `curl` only if re-downloading atlases. Core extraction has no Python package dependencies. QC PNG rendering additionally needs NumPy, Nibabel, Matplotlib, and Pillow (`python3 -m pip install -r requirements-qc.txt`).
 
-FSHarvest 1.0.0 was end-to-end tested with a FreeSurfer 7.4.1 runtime against reconstructions produced by FreeSurfer 7.2.0. Version 1.0.2 preserves available data from partial subjects and has passed 65 automated tests, Ruff, mypy, and the documentation build. Aggregation was also verified using temporary copies of saved outputs from 554 subjects; FreeSurfer reconstruction, projection and statistics commands were not rerun for this patch. Validate other FreeSurfer releases on representative subjects before study-wide use.
+FSHarvest 1.0.0 was end-to-end tested with a FreeSurfer 7.4.1 runtime against reconstructions produced by FreeSurfer 7.2.0. Version 1.0.3 adds the startup banner and built-in progress reporting and has passed 72 automated tests, Ruff, mypy, and the documentation build. Version 1.0.2 aggregation was verified using temporary copies of saved outputs from 554 subjects. FreeSurfer reconstruction, projection and statistics commands were not rerun for 1.0.3. Validate other FreeSurfer releases on representative subjects before study-wide use.
 
 ```bash
 cd /path/to/FSHarvest
@@ -93,6 +93,25 @@ fsharvest INPUT OUTPUT --atlases dk68 schaefer100 --export-to-freesurfer
 `--freesurfer-home /path/to/freesurfer` initializes that installation when FreeSurfer is not already on `PATH`. Cached outputs are reused only when the cache schema, non-downgrade tool version, source files, atlas assets, FreeSurfer runtime/template, successful status, TSV schemas, semantic checks, and recorded output checksums all match. External annotations are structurally parsed, checked against the pinned region schema and surface vertex count, and protected together with their statistics by per-artifact SHA-256 records. `PARTIAL`, `FAILED`, and damaged cached subjects are retried automatically; `--overwrite` ignores private caches and reusable subject annotations, forcing fresh projection and statistics generation.
 
 Without `--atlases`, FSHarvest extracts only `dk68`. Every other atlas is opt-in so routine runs remain fast and produce compact tables.
+
+## Console progress
+
+Normal runs display an ASCII FSHarvest logo, the package version, developer `zh1peng`,
+license and repository URL. The shell launcher announces FreeSurfer environment setup;
+the Python entry point then reports input/output paths, selected atlases and parallel jobs.
+The banner appears once, including when using the installed command.
+
+Timestamped messages announce validation, subject discovery, extraction, optional export
+and QC, and cohort aggregation. Subject updates use `[completed/total]`, include elapsed
+time and mark cache hits. Extraction is announced before the first subject finishes;
+aggregation is announced before tables are written. Messages are flushed immediately
+and use plain text suitable for terminals, `tee` and batch-job logs.
+
+The final summary shows the result across all requested phases, separate table-status
+counts, elapsed time, output and per-subject log paths, plus the QC report path when QC
+was requested. Partial results remain visible and retain their nonzero exit code.
+`--help` and `--version` remain concise and do not display the banner or initialize
+FreeSurfer. No progress echoes are needed in user scripts.
 
 ## Custom annotations
 

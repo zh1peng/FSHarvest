@@ -34,10 +34,19 @@ from typing import Any, Iterable, Iterator, Optional
 from urllib.parse import quote
 
 
-TOOL_VERSION = "1.0.2"
+TOOL_VERSION = "1.0.3"
 CACHE_SCHEMA_VERSION = 1
 OUTPUT_SCHEMA_VERSION = 1
 TOOL_NAME = "FSHarvest"
+TOOL_DEVELOPER = "zh1peng"
+TOOL_URL = "https://github.com/zh1peng/FSHarvest"
+ASCII_LOGO = r"""
+  _____ ____  _   _                           _
+ |  ___/ ___|| | | | __ _ _ ____   _____  ___| |_
+ | |_  \___ \| |_| |/ _` | '__\ \ / / _ \/ __| __|
+ |  _|  ___) |  _  | (_| | |   \ V /  __/\__ \ |_
+ |_|   |____/|_| |_|\__,_|_|    \_/ \___||___/\__|
+"""
 HEMISPHERES = ("lh", "rh")
 # mris_anatomical_stats omits these labels even when they have assigned vertices.
 STATS_EXCLUDED_REGIONS = ("unknown", "Unknown", "corpuscallosum", "Medial_wall")
@@ -2561,8 +2570,36 @@ def parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def _main(argv: Optional[list[str]], resources: RunResources) -> int:
+def print_banner() -> None:
+    print(
+        f"{ASCII_LOGO}\n"
+        f"  {TOOL_NAME} v{TOOL_VERSION} | FreeSurfer regional feature extraction\n"
+        f"  Developer: {TOOL_DEVELOPER}\n"
+        f"  License: MIT | Source: {TOOL_URL}\n",
+        flush=True,
+    )
+
+
+def print_progress(message: str, started: float, *, error: bool = False) -> None:
+    elapsed = max(0, int(time.monotonic() - started))
+    hours, remainder = divmod(elapsed, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    timestamp = datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S %z")
+    print(
+        f"[{timestamp} | elapsed {hours:02d}:{minutes:02d}:{seconds:02d}] {message}",
+        file=sys.stderr if error else sys.stdout,
+        flush=True,
+    )
+
+
+def _main(argv: Optional[list[str]], resources: RunResources, started: float) -> int:
     args = parse_args(argv)
+    # The shell launcher displays the same banner before FreeSurfer setup.
+    if os.environ.pop("FSHARVEST_LAUNCHER_BANNER_SHOWN", "") != "1":
+        print_banner()
+    print_progress("[CHECK] Checking options, input directory and FreeSurfer environment...", started)
+    print(f"Input: {args.subjects_dir.resolve()}\nOutput: {args.output_dir.resolve()}", flush=True)
+    print(f"Atlases: {', '.join(args.atlases)} | Parallel jobs: {args.jobs}", flush=True)
     if args.jobs < 1:
         raise ValueError("--jobs must be at least 1")
     if args.limit is not None and args.limit < 1:
@@ -2592,6 +2629,7 @@ def _main(argv: Optional[list[str]], resources: RunResources) -> int:
         raise ValueError("Input and output directories must not contain one another.")
 
     atlas_root = args.atlas_dir.resolve()
+    print_progress("[CHECK] Resolving atlas definitions and validating atlas assets...", started)
     atlases = resolve_atlases(args.atlases, atlas_root, fs_home)
     qc_keys = args.qc_atlases or list(atlases)
     unselected_qc = sorted(set(qc_keys) - set(atlases))
@@ -2613,6 +2651,7 @@ def _main(argv: Optional[list[str]], resources: RunResources) -> int:
     atlas_fingerprint = json_fingerprint(
         {"files": atlas_checksums, "definitions": {key: asdict(spec) for key, spec in atlases.items()}}
     )
+    print_progress("[DISCOVER] Finding FreeSurfer subjects...", started)
     subjects = discover_subjects(subjects_root, args.recursive)
     if args.limit is not None:
         subjects = subjects[: args.limit]
@@ -2643,10 +2682,15 @@ def _main(argv: Optional[list[str]], resources: RunResources) -> int:
         ensure_link(work_subjects / str(source_subject), source_path)
 
     runtime_version = command_version()
+    print_progress("[PREPARE] Checking template inputs before extraction...", started)
     template_fingerprint = template_input_fingerprint(fs_home, atlases)
     started_at = datetime.now(timezone.utc).isoformat()
     run_id = uuid.uuid4().hex
-    print(f"Discovered {len(subjects)} subjects; jobs={args.jobs}; FreeSurfer={runtime_version}", flush=True)
+    print_progress(f"Discovered {len(subjects)} subjects; jobs={args.jobs}; FreeSurfer={runtime_version}", started)
+    print_progress(
+        f"[EXTRACT] Starting {len(subjects)} subjects; progress is reported after each subject finishes.",
+        started,
+    )
     failed_subjects: set[str] = set()
     extraction_results: dict[Path, dict[str, Any]] = {}
     with ThreadPoolExecutor(max_workers=args.jobs) as executor:
@@ -2674,7 +2718,8 @@ def _main(argv: Optional[list[str]], resources: RunResources) -> int:
             try:
                 result = future.result()
                 extraction_results[subject] = result
-                print(f"[{count}/{len(subjects)}] {subject.name}: {result['status']}", flush=True)
+                cached = " (cached)" if result.get("cache_hit") else ""
+                print_progress(f"[{count}/{len(subjects)}] {subject.name}: {result['status']}{cached}", started)
                 if result["status"] != "OK":
                     failed_subjects.add(subject.name)
             except Exception as exc:
@@ -2694,9 +2739,10 @@ def _main(argv: Optional[list[str]], resources: RunResources) -> int:
                 atomic_write_text(
                     status_path, json.dumps(fatal_status, indent=2, ensure_ascii=False) + "\n"
                 )
-                print(f"[{count}/{len(subjects)}] {subject.name}: FATAL: {exc}", file=sys.stderr, flush=True)
+                print_progress(f"[{count}/{len(subjects)}] {subject.name}: FATAL: {exc}", started, error=True)
 
     if args.export_to_freesurfer:
+        print_progress("[EXPORT] Exporting validated external-atlas artifacts to FreeSurfer subjects...", started)
         for count, subject in enumerate(subjects, start=1):
             subject_out = output_root / "per_subject" / subject.name
             status_path = subject_out / "status.json"
@@ -2716,6 +2762,7 @@ def _main(argv: Optional[list[str]], resources: RunResources) -> int:
                     "export_errors": "Extraction is not OK; no files were exported.",
                 }
                 failed_subjects.add(subject.name)
+                print_progress(f"[EXPORT {count}/{len(subjects)}] {subject.name}: SKIPPED (extraction is not OK)", started)
             else:
                 try:
                     export_result = export_subject_artifacts(
@@ -2725,11 +2772,11 @@ def _main(argv: Optional[list[str]], resources: RunResources) -> int:
                         atlas_region_hashes,
                         status.get("managed_exports"),
                     )
-                    print(
+                    print_progress(
                         f"[EXPORT {count}/{len(subjects)}] {subject.name}: "
                         f"{export_result['exported_files']} new, "
                         f"{export_result['existing_export_files']} existing",
-                        flush=True,
+                        started,
                     )
                 except Exception as exc:
                     export_result = {
@@ -2741,10 +2788,9 @@ def _main(argv: Optional[list[str]], resources: RunResources) -> int:
                         "export_errors": str(exc),
                     }
                     failed_subjects.add(subject.name)
-                    print(
+                    print_progress(
                         f"[EXPORT {count}/{len(subjects)}] {subject.name}: FAILED: {exc}",
-                        file=sys.stderr,
-                        flush=True,
+                        started, error=True,
                     )
             status.update(export_result)
             extraction_results[subject] = status
@@ -2752,6 +2798,7 @@ def _main(argv: Optional[list[str]], resources: RunResources) -> int:
 
     if args.qc_plots:
         assert render_subject_function is not None
+        print_progress(f"[QC] Rendering {len(qc_atlases)} atlases for {len(subjects)} subjects...", started)
         for count, subject in enumerate(subjects, start=1):
             subject_out = output_root / "per_subject" / subject.name
             status_path = subject_out / "status.json"
@@ -2778,11 +2825,11 @@ def _main(argv: Optional[list[str]], resources: RunResources) -> int:
                         )
                     )
                 qc_status, qc_errors = "OK", ""
-                print(f"[QC {count}/{len(subjects)}] {subject.name}: {len(outputs)} PNGs", flush=True)
+                print_progress(f"[QC {count}/{len(subjects)}] {subject.name}: {len(outputs)} PNGs", started)
             except Exception as exc:
                 qc_status, qc_errors, qc_artifacts = "FAILED", str(exc), []
                 failed_subjects.add(subject.name)
-                print(f"[QC {count}/{len(subjects)}] {subject.name}: FAILED: {exc}", file=sys.stderr, flush=True)
+                print_progress(f"[QC {count}/{len(subjects)}] {subject.name}: FAILED: {exc}", started, error=True)
             try:
                 status = json.loads(status_path.read_text(encoding="utf-8"))
             except (OSError, json.JSONDecodeError):
@@ -2825,6 +2872,7 @@ def _main(argv: Optional[list[str]], resources: RunResources) -> int:
         "qc_surface": args.qc_surface if args.qc_plots else None,
         "qc_dpi": args.qc_dpi if args.qc_plots else None,
     }
+    print_progress("[AGGREGATE] Writing cohort tables and region-difference report...", started)
     failed_subjects.update(
         aggregate(
             output_root,
@@ -2836,14 +2884,28 @@ def _main(argv: Optional[list[str]], resources: RunResources) -> int:
         )
     )
     failures = len(failed_subjects)
-    print(f"Finished: {len(subjects) - failures} OK, {failures} non-OK. Output: {output_root}", flush=True)
+    statuses = Counter(row["status"] for row in read_tsv(output_root / "subjects.tsv"))
+    print_progress(
+        f"[DONE] Finished: {len(subjects) - failures} OK, {failures} non-OK across all requested phases.",
+        started,
+    )
+    print("Table status: " + ", ".join(f"{key}={statuses[key]}" for key in ("OK", "PARTIAL", "FAILED", "NOT_RUN")), flush=True)
+    if failures:
+        print("Available data are retained; review subjects.tsv and region_differences.tsv for reported problems.", flush=True)
+    print(f"Output: {output_root}\nSubject logs: {output_root / 'per_subject'}/<folder_id>/extract.log", flush=True)
+    if args.qc_plots:
+        print(f"QC report: {output_root / 'all_qc.html'}", flush=True)
     return 0 if failures == 0 else 2
 
 
 def main(argv: Optional[list[str]] = None) -> int:
     resources = RunResources()
+    started = time.monotonic()
     try:
-        return _main(argv, resources)
+        return _main(argv, resources, started)
+    except (Exception, KeyboardInterrupt):
+        print_progress("[STOPPED] Run ended before completion.", started, error=True)
+        raise
     finally:
         resources.cleanup()
 

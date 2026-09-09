@@ -2,6 +2,12 @@
 
 All notable changes to FSHarvest are recorded here. The project follows semantic versioning once a release is tagged.
 
+## 1.0.3 - 2026-09-09
+
+- Display a package-owned ASCII startup banner with version, developer, license and repository information.
+- Report timestamped phases, completed-subject counts, elapsed time, cache hits and a final status/path summary without user-script echoes.
+- Keep help/version output clean and show the banner once before launcher environment setup.
+
 ## 1.0.2 - 2026-09-08
 
 - Aggregate available current-run rows from partial and failed subjects, retaining status and errors in long and wide tables.
