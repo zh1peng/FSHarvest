@@ -1,6 +1,10 @@
+<script setup>
+import manifest from '../public/examples/v1.0.4/six-atlas-atlas_manifest.tsv?raw'
+</script>
+
 # 同时提取多个脑区分区
 
-同时选择多个分区会增加运行时间、输出列数和 QC 图片数量。建议根据研究目的选择必要的分区，
+同时选择多个分区会增加运行时间、输出列数；启用 QC 时也会增加图片数量。建议根据研究目的选择必要的分区，
 不要默认一次运行全部分区。
 
 ## 分阶段运行
@@ -55,10 +59,10 @@ fsharvest INPUT OUTPUT --atlases dk68 schaefer100 /path/to/lab-atlas.json \
 程序读取 annot 中实际分配给源模板顶点的色表条目，排除标签后，分别确定左右脑区名称和数量；
 忽略未使用的色表条目，两侧数量可以不同，脑区名称可以包含空格。
 每个保留的脑区都需要出现在生成的统计文件中；投影后丢失的真实脑区仍会报错。
-用户不需要制作 manifest 或 SHA 文件。
+无需另外编写图谱清单或校验值文件。
 
 内置名称加载我们整理的 annot 和配套信息，自定义 JSON 加载用户指定的 annot；两者都进入
-“校验 → 投影到受试者 → 生成 stats → 提取汇总与 QC”的流程。
+“校验 → 投影到受试者 → 生成统计文件 → 提取并汇总”的流程，QC 可按需启用。
 DK68、Destrieux 则直接读取 recon-all 已生成的统计文件。
 
 顶点数检查只能发现与模板不匹配的文件，不能自动判断源空间。
@@ -74,7 +78,7 @@ DK68、Destrieux 则直接读取 recon-all 已生成的统计文件。
 `atlas_manifest.tsv` 会记录每个分区的预期区域数和完整受试者数。下面来自 1.0.4 在 linux212
 上前 10 位受试者的六图谱运行，保留部分列；所有图谱都有 10 位完整受试者：
 
-<<< @/public/examples/v1.0.4/six-atlas-atlas_manifest.tsv{text}
+<ExampleTable :tsv="manifest" caption="六图谱清单：6 行、7 个字段" download="/examples/v1.0.4/six-atlas-atlas_manifest.tsv" />
 
 [对应的 CLI、可下载 SH 脚本与完整输出](./ten-subject-example#six-atlas)。
 
@@ -106,6 +110,8 @@ schaefer400__L_7Networks_LH_Vis_1_thickavg
 5. 在分析方法中记录分区名称、尺度、来源和 FreeSurfer 版本。
 
 ::: warning 当前没有逐分区状态表
-`subjects.tsv` 目前不是受试者 × 分区状态表。只要一个所选分区失败，该受试者的整体状态
-就不是 `OK`，也不会进入本次严格汇总表。
+`subjects.tsv` 目前不是受试者 × 分区状态表。某个所选分区失败时，该受试者的整体状态
+可能为 `PARTIAL` 或 `FAILED`，但已经成功解析、对应关系明确的数据仍会进入汇总。
+缺失脑区的值留空；请结合 `errors`、`status.json` 和 `extract.log` 查看具体原因。
+详见[如何判断结果是否进入汇总表](../guide/outputs#如何判断结果是否进入汇总表)。
 :::

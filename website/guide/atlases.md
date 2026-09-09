@@ -1,15 +1,15 @@
 # 脑区分区与处理方式
 
-脑区分区（atlas）决定皮层如何划分为不同区域。命令中使用下表的键选择需要提取的分区。
+脑区分区（atlas）决定皮层如何划分为不同区域。在 `--atlases` 后填写下表中的图谱名称，指定要提取的分区。
 
 ## 可用脑区分区
 
-| 命令键 | 分区 | 每半球预期区域 | 来源路径 |
+| 命令中的名称 | 脑区总数 | 左 / 右半球脑区数 | 来源与标准空间 |
 | --- | ---: | ---: | --- |
 | `dk68` | 68 | 34 / 34 | FreeSurfer 内置，默认 |
 | `destrieux` | 148 | 74 / 74 | FreeSurfer 内置 |
 | `dk308` | 308 | 152 / 156 | NSPN500，`fsaverage` |
-| `schaefer100` … `schaefer1000` | 100–1000 | N/2 | micapipe，`fsaverage5` |
+| `schaefer100` … `schaefer1000` | 100–1000 | 各占总数的一半 | micapipe，`fsaverage5` |
 | `glasser360` | 360 | 180 / 180 | micapipe，`fsaverage5` |
 | `economo` | 86 | 43 / 43 | micapipe，`fsaverage5` |
 | `vosdewael300` | 300 | 150 / 150 | micapipe，`fsaverage5` |
@@ -20,7 +20,7 @@
 用户提供左右 annot 和源模板后，共用现有投影、统计、汇总及 QC 流程，
 详见[使用自己的 annot 文件](../tutorials/multi-atlas.md#使用自己的-annot-文件)。
 
-## 两条提取路径
+## 不同图谱如何提取
 
 ### FreeSurfer 内置分区
 
@@ -39,7 +39,7 @@ OUTPUT/per_subject/SUBJECT/label/
 OUTPUT/per_subject/SUBJECT/stats/
 ```
 
-## 选择示例
+## 如何指定要提取的图谱
 
 ```bash
 fsharvest INPUT OUTPUT --jobs 12 \
@@ -55,5 +55,5 @@ FSHarvest 不只核对行数，还会检查排除内侧壁和背景区域后的�
 清单均记录 SHA-256 校验值。
 
 ::: warning 三种“300”不能互换
-`schaefer300`、`vosdewael300` 与 `dk308` 是不同分区。DK308 上游名称中的 `500` 指目标 parcel 面积，并不是区域数量。
+`schaefer300`、`vosdewael300` 与 `dk308` 是不同分区。DK308 上游名称中的 `500` 指目标脑区面积，并不是区域数量。
 :::

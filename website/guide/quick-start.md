@@ -31,12 +31,12 @@ fsharvest "$subjects_dir" "$output_dir" \
 bash run_fsharvest_example.sh
 ```
 
-本脚本已在 linux212 上替换路径后实跑，10/10 为 `OK`；生成的三类长表和总宽表与 CLI
+修改路径后，我们已在 linux212 上实际运行此脚本，10/10 为 `OK`；生成的三类长表和总宽表与 CLI
 运行结果完全一致。
 
-`--limit 10` 选择按目录名排序的前 10 位可发现受试者；并行任务按完成顺序报告进度。
+`--limit 10` 从程序识别到的受试者中，按目录名排序取前 10 位；并行任务按完成顺序报告进度。
 `--atlases dk68` 在这里显式写出，省略时也默认选择 DK68。无需在脚本中添加 `echo`、
-`tee` 或 FreeSurfer 初始化步骤，package 会准备环境、显示进度并保存日志。
+`tee` 或 FreeSurfer 初始化步骤，FSHarvest 会准备环境、显示进度并保存日志。
 
 ## 2. 运行时会看到什么
 
@@ -58,7 +58,7 @@ Run exit code: 0
 
 上面三行是终端记录的节选，省略了 `[DONE]` 前的时间戳。`[CHECK]` 和 `[PREPARE]` 表示正在
 检查输入与模板；`[EXTRACT]` 在首位受试者完成前出现；`[1/10]` 至 `[10/10]` 显示已完成数量；
-`[AGGREGATE]` 表示正在写队列汇总表。`OK` 是程序检查状态，不能替代对重建边界的人工评估。
+`[AGGREGATE]` 表示正在写汇总表。`OK` 是程序检查状态，不能替代对重建边界的人工评估。
 
 ## 3. 总日志已经自动保存
 
@@ -100,14 +100,14 @@ column -t -s $'\t' /data/derived/fsharvest-dk68-example/subjects.tsv | less -S
 
 状态为 `PARTIAL` 或 `FAILED` 时，查看 `subjects.tsv` 的 `errors`、逐受试者 `status.json`
 和 `extract.log`。已成功解析、对应关系明确的数据仍会进入汇总；缺失脑区在对应列留空。
-详见[输出表及真实数据片段](./outputs)和[10 位受试者完整示例](../tutorials/ten-subject-example)。
+详见[输出表及真实数据示例](./outputs)和[10 位受试者完整示例](../tutorials/ten-subject-example)。
 
-## 5. 重复运行与完整队列
+## 5. 重复运行与处理全部受试者
 
 重复执行第 1 步的同一条命令，本例的 10 位受试者全部命中缓存，进度行增加 `(cached)`。
 汇总表仍会重新写出，总日志另存为新文件。
 
-完整队列建议使用另一个输出目录，并移除 `--limit 10`：
+处理全部受试者时，建议使用另一个输出目录，并移除 `--limit 10`：
 
 ```bash
 fsharvest /data/study/freesurfer /data/derived/fsharvest-dk68-full \
@@ -115,7 +115,7 @@ fsharvest /data/study/freesurfer /data/derived/fsharvest-dk68-full \
   --atlases dk68 --jobs 5
 ```
 
-队列汇总始终对应本次选中的受试者和图谱。在完整队列的输出目录再次执行 `--limit 10`，
+汇总表始终对应本次选中的受试者和图谱。在全部受试者的输出目录再次执行 `--limit 10`，
 会把汇总表改写成这 10 位的结果；采用独立试运行目录可避免这种混淆。
 
 需要 DK308、Destrieux 和 Schaefer？继续看[六图谱 CLI 与 SH 实例](../tutorials/ten-subject-example#six-atlas)。

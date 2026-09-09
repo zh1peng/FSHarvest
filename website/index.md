@@ -4,12 +4,12 @@
 
 FSHarvest 是一个在 Linux 上运行的命令行工具，用于批量整理多个受试者的 FreeSurfer 结果。
 指定输入目录和输出目录后，程序会提取皮层、皮层下和全局指标，计算 Euler 数，并记录
-FreeSurfer 版本与运行参数。结果保存为长表、宽表和质量控制（QC）文件，便于后续统计分析。
+FreeSurfer 版本与运行参数。结果保存为长表和宽表，便于后续统计分析；质量控制（QC）图片可按需生成。
 
 ## 处理流程
 
 <div class="harvest-path">
-FreeSurfer 受试者结果 → 识别受试者 → 提取所选脑区分区 → 检查结果完整性 → 生成 TSV 表格、QC 图片和运行记录
+FreeSurfer 受试者结果 → 识别受试者 → 提取所选脑区分区 → 检查结果完整性 → 生成 TSV 表格和运行记录（可选 QC 图片）
 </div>
 
 FSHarvest 默认不会修改原始 FreeSurfer 结果。外部分区生成的 `.annot`、`.stats` 和缓存

@@ -18,7 +18,7 @@ fsharvest INPUT OUTPUT \
   --qc-atlases dk68 schaefer100
 ```
 
-每张图片依次包含左外侧、左内侧、右外侧和右内侧。默认使用 inflated 表面，也可以改为：
+每张图片依次包含左外侧、左内侧、右外侧和右内侧。默认使用膨胀表面（inflated），也可以改为：
 
 ```bash
 --qc-surface pial
@@ -47,7 +47,7 @@ xdg-open OUTPUT/all_qc.html
 ![all_qc.html 页面截图](/examples/qc-report-example.png)
 
 每张 PNG 都有一个同名 `.json` 文件，其中记录本次 run ID、表面类型、DPI、输入表面和
-`.annot` 文件的 SHA-256。HTML 只显示与当前运行及当前输入一致的图片；本次没有请求 QC
+`.annot` 文件的 SHA-256。HTML 只显示与当前运行及当前输入一致的图片；本次没有启用 QC
 或绘图失败时，旧图片不会代替新结果出现在报告中。
 
 ## 应该检查什么

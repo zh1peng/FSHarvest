@@ -131,6 +131,17 @@
   --vp-code-copy-copied-text-content: '已复制';
 }
 
+/* Methods paragraphs should be readable without horizontal scrolling. */
+.vp-doc .methods-copy pre,
+.vp-doc .methods-copy code {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.vp-doc .methods-copy pre {
+  padding-top: 48px;
+}
+
 .vp-doc img[src*="/examples/"] {
   display: block;
   width: 100%;

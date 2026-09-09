@@ -1,7 +1,13 @@
+<script setup>
+import subjects from '../public/examples/v1.0.4/dk68-subjects.tsv?raw'
+import cortical from '../public/examples/v1.0.4/dk68-cortical_long.tsv?raw'
+import wide from '../public/examples/v1.0.4/dk68-all_features_wide.tsv?raw'
+</script>
+
 # 输出与数据表
 
-FSHarvest 生成长表（long format）、宽表（wide format）、逐受试者缓存和运行记录。
-下列片段更新自 2026-09-09 在 `linux212` 上使用 **1.0.4** 运行前 10 位受试者的结果；
+FSHarvest 生成长表（long format）、宽表（wide format）、每位受试者的缓存和运行记录。
+以下示例数据来自 2026-09-09 在 `linux212` 上使用 **1.0.4** 运行前 10 位受试者的结果；
 公开展示时已将受试者名称和路径替换。[对应命令和完整记录](../tutorials/ten-subject-example)。
 
 ## 输出目录
@@ -33,13 +39,13 @@ OUTPUT/
 ```
 
 这里省略了另外 9 位受试者的目录。选择外部分区后，`per_subject/` 中还会出现 `label/`
-和 `stats/`；仅在显式启用 QC 后生成 `qc/*.png` 及其 sidecar 文件。
+和 `stats/`；仅在显式启用 QC 后生成 `qc/*.png` 及配套的 JSON 记录文件。
 减少所选图谱时，旧宽表可能归档至 `archive/RUN_ID/wide/`。
 
 选择外部分区时，程序会创建名称唯一的 `.fsharvest-work-*` 临时目录。该目录及其中的符号链接
 会在正常退出、失败或中断后清理。程序不会删除输出目录中原本存在的 `work/` 或其他目录。
 
-## 队列级文件
+## 所有受试者的汇总文件
 
 | 文件 | 内容 |
 | --- | --- |
@@ -49,7 +55,7 @@ OUTPUT/
 | `global_measures_long.tsv` | eTIV、BrainSegVol 和 surface holes 等 `# Measure` 记录 |
 | `wide/ATLAS.tsv` | 每个分区一张宽表，每位受试者一行 |
 | `all_features_wide.tsv` | 所选分区的九类皮层指标、皮层下结构体积和全局指标；不复制 `aseg.stats` 的其他非体积列 |
-| `atlas_manifest.tsv` | 分区定义、annot 路径、左右预期区域数和完整受试者数；curated 分区另记录区域名称 SHA-256 |
+| `atlas_manifest.tsv` | 分区定义、annot 路径、左右预期区域数和完整受试者数；随程序提供的图谱另记录区域名称 SHA-256 |
 | `region_differences.tsv` | 相对图谱定义缺少的名称、多出的名称，以及队列中其他受试者有而该受试者没有的名称 |
 | `run_metadata.json` | run ID、时间、参数、软件版本、分区校验值和输入指纹 |
 | `logs/run_*.log` | 整次命令的横幅、环境准备、进度、错误和退出码；每次运行独立保存 |
@@ -61,18 +67,18 @@ OUTPUT/
 `all_features_wide.tsv` 为 10 行 × 687 列，`wide/dk68.tsv` 为 10 行 × 622 列。
 行数不含表头；全局指标和 aseg 的数量取决于实际输入。
 
-以下状态片段来自同一命令的第二次运行，因此 `cache_hit=1`。`qc_status` 为空表示本次没有
-请求 QC，不能解读为“QC 已通过”。下载[状态列片段 TSV](/examples/v1.0.4/dk68-subjects.tsv)。
+以下处理状态来自同一命令的第二次运行，因此 `cache_hit=1`。`qc_status` 为空表示本次没有
+启用 QC，不能解读为“QC 已通过”。下载[状态示例 TSV](/examples/v1.0.4/dk68-subjects.tsv)。
 
-<<< @/public/examples/v1.0.4/dk68-subjects.tsv{text}
+<ExampleTable :tsv="subjects" caption="DK68：10 位受试者的处理状态（7 个字段）" download="/examples/v1.0.4/dk68-subjects.tsv" />
 
 ## `cortical_long.tsv` 示例
 
-为了便于阅读，下例只显示部分列：
+下表展示前 3 行的部分字段，可搜索脑区名称或点击列标题排序：
 
-<<< @/public/examples/v1.0.4/dk68-cortical_long.tsv{text}
+<ExampleTable :tsv="cortical" caption="皮层长表：前 3 行、8 个字段" download="/examples/v1.0.4/dk68-cortical_long.tsv" />
 
-这些数值直接来自实际提取结果；[下载本片段](/examples/v1.0.4/dk68-cortical_long.tsv)。
+这些数值直接来自实际提取结果；[下载这些示例数据](/examples/v1.0.4/dk68-cortical_long.tsv)。
 
 `folder_id` 是输入受试者目录名，程序要求它在一次运行中唯一；`subject_id` 来自 FreeSurfer
 统计文件头，可能在不同目录或多次扫描之间重复。
@@ -86,9 +92,9 @@ OUTPUT/
 
 前三位受试者的部分宽表数值如下（省略其他列）：
 
-<<< @/public/examples/v1.0.4/dk68-all_features_wide.tsv{text}
+<ExampleTable :tsv="wide" caption="总宽表：前 3 位受试者、5 个字段" download="/examples/v1.0.4/dk68-all_features_wide.tsv" />
 
-[下载宽表片段](/examples/v1.0.4/dk68-all_features_wide.tsv)。`thickavg` 的单位为 mm，
+[下载宽表示例](/examples/v1.0.4/dk68-all_features_wide.tsv)。`thickavg` 的单位为 mm，
 示例中的海马体积单位为 mm³。
 
 单个分区的宽表使用半球、区域和指标组成列名：
@@ -110,18 +116,18 @@ global__eTIV
 ## 如何判断结果是否进入汇总表
 
 输出目录中的 `subjects.tsv`、长表、宽表、分区清单和运行记录始终表示**本次命令**选择的
-受试者和分区，并不是对历史结果的自动追加。完整队列之后在同一输出目录执行 `--limit 10`，
-会把这些汇总文件改写为本次十位受试者的结果；逐受试者缓存仍可保留并在后续复用。
+受试者和分区，并不是对历史结果的自动追加。处理完全部受试者后，在同一输出目录执行 `--limit 10`，
+会把这些汇总文件改写为本次十位受试者的结果；每位受试者的缓存仍可保留并在后续复用。
 
 汇总保留本次运行中能够明确对应、成功解析的数据，包括状态为 `PARTIAL` 或 `FAILED` 的
 受试者。长表和宽表均携带 `status` 与 `errors`；进入总表不代表重建、图谱检查或 QC 已通过。
 `NOT_RUN` 和其他运行留下的数据不进入本次汇总。存在非 OK 状态时，命令仍返回非零退出码。
 
-脑区名称按原样保留。宽表列来自本次队列保留记录中名称的并集，某位受试者缺失的值留空，
+脑区名称按原样保留。宽表列来自本次保留记录中所有不同的脑区名称，某位受试者缺失的值留空，
 不会补零，也不会把 `&` 和 `_and_` 自动合并。`region_differences.tsv` 用 JSON 名称列表记录
 `missing_expected`（缺少的预期名称）、`unexpected_names`（额外名称）和
 `absent_from_subject`（其他受试者有、该受试者没有的名称）。`reference` 标明是否有图谱定义
-可供比较；名称差异不一定代表解剖区域不同。全队列都未观察到的预期脑区只列在差异报告中，
+可供比较；名称差异不一定代表解剖区域不同。所有受试者都未出现的预期脑区只列在差异报告中，
 不会凭空创建宽表列。
 
 损坏、缺失、校验和不符或表头无法解析时，只跳过对应的受试者文件。行格式错误、非法数值
@@ -137,7 +143,7 @@ aseg 的分割 ID 和结构名、全局指标的 measure 和 metric 均检查歧
 程序会停止并要求人工移出该文件，避免把来源不明的表误当作当前结果。
 
 ::: info 多分区会产生很宽的表
-程序使用运行结束后清理的临时 TSV，保证长表和宽表使用相同记录，不会把整个队列矩阵同时
+程序使用运行结束后清理的临时 TSV，保证长表和宽表使用相同记录，不会把所有受试者的数据矩阵同时
 放入内存。请为临时表预留磁盘空间；选择多个高分辨率分区时，最终 TSV 仍可能包含数万列。
 :::
 

@@ -21,7 +21,7 @@ fsharvest SUBJECTS_DIR OUTPUT_DIR [options]
 | `--overwrite` | 关闭 | 忽略可复用的缓存和受试者目录内已有的外部分区文件，重新投影并计算统计量 |
 | `--force-unlock` | 关闭 | 在确认同一主机上记录的进程已经结束后，移除遗留的输出锁 |
 | `--freesurfer-home PATH` | `$FREESURFER_HOME` | 指定 FreeSurfer 安装目录 |
-| `--atlas-dir PATH` | 仓库的 `atlases/` | 指定 curated 分区资源目录；自定义 annot 路径由 JSON 定义 |
+| `--atlas-dir PATH` | 仓库的 `atlases/` | 指定随程序提供的图谱资源目录；自定义 annot 路径由 JSON 定义 |
 
 `--overwrite` 不会覆盖输入目录中的文件；只有显式使用 `--export-to-freesurfer` 才会尝试向输入目录复制文件。
 
@@ -32,7 +32,7 @@ fsharvest SUBJECTS_DIR OUTPUT_DIR [options]
 | `--atlases NAME_OR_JSON ...` | `dk68` | 接受内置分区名称或自定义分区 JSON 路径，可混合使用 |
 | `--export-to-freesurfer` | 关闭 | 把验证通过的外部分区 `.annot` 和统计文件复制到输入受试者目录；遇到同名文件时不会替换 |
 
-可用键：
+可用的图谱名称：
 
 ```text
 dk68 destrieux dk308
@@ -75,7 +75,7 @@ fsharvest 1.0.4
 
 ## 启动横幅、运行进度与日志
 
-正常运行时会自动显示 ASCII 工具包 logo、版本、开发者 `zh1peng`、许可证和仓库地址。
+正常运行时会自动显示 ASCII 字符标志、版本、开发者 `zh1peng`、许可证和仓库地址。
 通过安装后的 `fsharvest` 命令运行时，横幅只显示一次，随后报告 FreeSurfer 环境准备情况。
 `--help` 和 `--version` 保持简洁，不显示横幅，也不初始化 FreeSurfer。
 
@@ -84,7 +84,7 @@ fsharvest 1.0.4
 是否命中缓存；进度消息带时间戳和已用时间，并立即输出，方便终端查看及保存到批处理日志。
 第一个受试者尚未完成时也会先显示“开始提取”，不需要用户在脚本中自行添加 echo。
 
-结束时会显示全部请求阶段的总体结果、独立的表格状态计数、已用时间、输出目录和逐受试者
+结束时会显示本次启用的所有阶段的总体结果、独立的表格状态计数、已用时间、输出目录和逐受试者
 日志位置；启用 QC 才显示 QC 报告路径。部分结果仍保留并返回非零退出码，不会被显示为
 全部成功。进度采用纯文本，不依赖彩色终端或额外 Python 包。
 
@@ -104,4 +104,4 @@ fsharvest 1.0.4
 | `1` | 参数、环境或运行阶段发生错误 |
 | `130` | 用户中断，例如按下 `Ctrl+C` |
 
-自动化脚本应同时检查退出码和 `subjects.tsv`，不要只依据聚合表是否存在来判断成功。
+自动化脚本应同时检查退出码和 `subjects.tsv`，不要只依据汇总表是否存在来判断成功。

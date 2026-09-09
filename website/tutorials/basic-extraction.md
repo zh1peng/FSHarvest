@@ -1,6 +1,6 @@
 # 批量提取 FreeSurfer 指标
 
-先用 10 位受试者检查目录和运行环境，确认无误后再处理完整队列。
+先用 10 位受试者检查目录和运行环境，确认无误后再处理全部受试者。
 
 ## 1. 初始化 FreeSurfer
 
@@ -42,7 +42,7 @@ Table status: OK=10, PARTIAL=0, FAILED=0, NOT_RUN=0
 Run exit code: 0
 ```
 
-终端还会显示本次 `Run log:` 路径；总日志由 package 自动保存。
+终端还会显示本次 `Run log:` 路径；总日志由 FSHarvest 自动保存。
 [完整实测输出、CLI 和 SH 脚本](./ten-subject-example)以 1.0.4 的前 10 位受试者为例。
 
 ## 3. 检查状态
@@ -53,16 +53,15 @@ cut -f1,2,7,17 /data/derived/fsharvest/subjects.tsv | column -t -s $'\t'
 
 下面是说明错误格式的示意，不是本次 10 位受试者的实际结果（本次全部为 `OK`）：
 
-```text
-subject_id  folder_id   status  errors
-example-01  example-01  OK
-example-02  example-02  PARTIAL  dk68/rh: missing standard FreeSurfer stats
-```
+| subject_id | folder_id | status | errors |
+| --- | --- | --- | --- |
+| example-01 | example-01 | OK | |
+| example-02 | example-02 | PARTIAL | dk68/rh: missing standard FreeSurfer stats |
 
 理想情况下，每位受试者的 `status` 都应为 `OK`。出现 `PARTIAL` 或 `FAILED` 时，
-请先查看对应的 `extract.log` 和 `status.json`。在确认失败原因前，不要直接使用队列宽表。
+请先查看对应的 `extract.log` 和 `status.json`。在确认失败原因前，不要直接使用汇总宽表。
 
-## 4. 扩展到完整队列
+## 4. 处理全部受试者
 
 移除 `--limit`：
 

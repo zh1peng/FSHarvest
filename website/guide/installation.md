@@ -10,7 +10,7 @@
 核心表格提取不依赖第三方 Python 包。只有生成表面 QC 图片时需要 NumPy、Nibabel、
 Matplotlib 和 Pillow。
 
-## 安装为用户命令
+## 安装 fsharvest 命令
 
 ```bash
 git clone https://github.com/zh1peng/FSHarvest.git
@@ -19,11 +19,11 @@ bash install.sh
 export PATH="$HOME/.local/bin:$PATH"
 ```
 
-默认安装到 `~/.local/lib/fsharvest/VERSION/`，复制与自检完成后原子切换 `current`
-链接，并在 `~/.local/bin/fsharvest` 创建启动命令。不同版本不会相互合并。
-安装后的命令不依赖源码检出目录。
+默认安装到 `~/.local/lib/fsharvest/VERSION/`。安装并检查通过后，`current` 链接会指向
+新版本，并在 `~/.local/bin/fsharvest` 创建启动命令。各版本单独存放；
+安装后的命令不依赖下载的源码目录。
 
-可以把其他前缀作为第一个参数：
+需要安装到其他位置时，在 `install.sh` 后指定安装目录：
 
 ```bash
 bash install.sh /opt/fsharvest

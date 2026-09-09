@@ -1,7 +1,11 @@
+<script setup>
+import subjects from '../public/examples/v1.0.4/six-atlas-subjects.tsv?raw'
+</script>
+
 # 10 位受试者真实运行示例
 
 这页把可执行命令、终端输出和结果表放在一起。示例于 **2026-09-09** 在 **linux212**
-使用正式发布的 **FSHarvest 1.0.4** 运行，输入为该数据集按目录名排序的前 10 位可发现受试者。
+使用正式发布的 **FSHarvest 1.0.4** 运行，从该数据集被程序识别到的受试者中，按目录名排序取前 10 位。
 公开示例中的名称统一替换为 `example-01` 至 `example-10`，私有路径替换为示例路径；
 保留实际数值、时间和并行完成顺序。
 
@@ -10,8 +14,8 @@
 | 提取环境 | Linux；FreeSurfer 7.4.1 |
 | 输入重建版本 | FreeSurfer 7.2.0 |
 | 被试数量 / 并行数 | 10 / 5 |
-| 首个示例 | DK68：首次运行与缓存复用 |
-| 扩展示例 | DK68、DK308、Destrieux、Schaefer100/200/300 |
+| DK68 提取 | DK68：首次运行与缓存复用 |
+| 六图谱提取 | DK68、DK308、Destrieux、Schaefer100/200/300 |
 | QC / 向 FreeSurfer 导出 | 均未启用 |
 
 两个示例使用独立输出目录。DK68 从已有统计文件读取；六图谱示例还实际执行了外部分区
@@ -19,7 +23,7 @@
 
 ## DK68：从命令到总日志
 
-[快速开始](../guide/quick-start)提供完全对应的 CLI / SH 两种用法。运行时无需额外的日志包装：
+[快速开始](../guide/quick-start)提供完全对应的 CLI / SH 两种用法。无需自行编写保存日志的命令：
 
 ```bash
 fsharvest /data/study/freesurfer /data/derived/fsharvest-dk68-example \
@@ -40,7 +44,7 @@ fsharvest /data/study/freesurfer /data/derived/fsharvest-dk68-example \
 :::
 
 `[已完成/总数]` 是完成计数，后面的受试者名才是具体对象。并行时 `example-02` 可以先于
-`example-01` 完成，不影响最终按脑区名称汇聚。缓存命中后仍会按本次选择重写队列汇总表。
+`example-01` 完成，不影响最终按脑区名称汇聚。缓存命中后仍会按本次选择重写汇总表。
 
 ## 六图谱运行：包含 DK308 {#six-atlas}
 
@@ -114,16 +118,16 @@ DK308 在本包中的有效统计区域为左侧 152、右侧 156，总计 308�
 
 ### 前 10 位受试者的状态
 
-以下为六图谱首次运行的状态列片段，`cache_hit=0`；`qc_status` 为空，因为未请求 QC。
+以下为六图谱首次运行的处理状态（部分字段），`cache_hit=0`；`qc_status` 为空，因为未启用 QC。
 
-<<< @/public/examples/v1.0.4/six-atlas-subjects.tsv{text}
+<ExampleTable :tsv="subjects" caption="六图谱：10 位受试者的处理状态（7 个字段）" download="/examples/v1.0.4/six-atlas-subjects.tsv" />
 
 原始 `subjects.tsv` 还包含 `subject_id`、路径、Euler 数、错误和运行版本等字段。
-长表与宽表的实际数值片段及字段含义见[输出与数据表](../guide/outputs)。
+长表与宽表的实际数值示例及字段含义见[输出与数据表](../guide/outputs)。
 
-## 下载示例与核对记录
+## 下载脚本、日志和示例数据
 
-这些下载文件来自上面的真实运行。TSV 为选取的行列片段，JSON 是核对摘要，均不替代完整的
+这些下载文件来自上面的真实运行。TSV 选取了部分行和字段，JSON 记录运行信息与结果统计，均不替代完整的
 原始输出文件；受试者名和私有路径已替换，没有公开输入影像或身份映射表。
 
 | 文件 | 用途 |
@@ -132,9 +136,9 @@ DK308 在本包中的有效统计区域为左侧 152、右侧 156，总计 308�
 | <a href="/FSHarvest/examples/run_fsharvest_multi_atlas.sh" download>六图谱 SH 脚本</a> | 含 DK308，不启用 QC |
 | <a href="/FSHarvest/examples/v1.0.4/dk68-run.log" download>DK68 首次总日志</a> / <a href="/FSHarvest/examples/v1.0.4/dk68-cached-run.log" download>缓存复用总日志</a> | 对比启动、进度、缓存与日志文件名 |
 | <a href="/FSHarvest/examples/v1.0.4/six-atlas-run.log" download>六图谱总日志</a> | 查看 10 位受试者的真实完成顺序和耗时 |
-| [六图谱状态片段](/examples/v1.0.4/six-atlas-subjects.tsv) | 对照状态、行数、缓存和 QC 字段 |
-| [六图谱 manifest 片段](/examples/v1.0.4/six-atlas-atlas_manifest.tsv) | 核对每个图谱的预期区域数与完成数 |
-| [DK68 核对摘要](/examples/v1.0.4/dk68-summary.json) / [六图谱核对摘要](/examples/v1.0.4/six-atlas-summary.json) | 查看版本、参数、行列数及公开示例来源 |
+| [六图谱状态示例](/examples/v1.0.4/six-atlas-subjects.tsv) | 对照状态、行数、缓存和 QC 字段 |
+| [六图谱清单示例](/examples/v1.0.4/six-atlas-atlas_manifest.tsv) | 核对每个图谱的预期区域数与完成数 |
+| [DK68 运行摘要](/examples/v1.0.4/dk68-summary.json) / [六图谱运行摘要](/examples/v1.0.4/six-atlas-summary.json) | 查看版本、参数、行列数及公开示例来源 |
 
 程序是否成功仍需结合退出码、`subjects.tsv` 和错误信息判断。若你的脑区名称与预期不同，
 以实际名称对齐、保留已有数据，并查看 `region_differences.tsv` 中的具体差异。
