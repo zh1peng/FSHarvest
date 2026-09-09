@@ -118,6 +118,19 @@
   box-shadow: none;
 }
 
+/* Keep the built-in copy control visible on desktop and touch screens. */
+.vp-doc [class*="language-"] > button.copy {
+  opacity: 1;
+}
+
+.vp-doc [class*="language-"] > span.lang {
+  right: 60px;
+}
+
+:lang(zh-CN) {
+  --vp-code-copy-copied-text-content: '已复制';
+}
+
 .vp-doc img[src*="/examples/"] {
   display: block;
   width: 100%;

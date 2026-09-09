@@ -25,17 +25,25 @@ export FREESURFER_HOME=/usr/local/freesurfer/7.4.1
 fsharvest /path/to/subjects /path/to/output --jobs 12
 ```
 
-一次正常运行会显示受试者数量、FreeSurfer 版本和处理结果：
+1.0.4 会自动显示 ASCII 横幅、版本和开发者，报告阶段进度，并保存整次运行的总日志。
+下面摘自 linux212 上前 10 位受试者的真实 DK68 运行（省略时间戳和中间行，路径已替换）：
 
 ```text
-Discovered 1 subjects; jobs=1; FreeSurfer=freesurfer-linux-ubuntu22_x86_64-7.4.1-20230614-7eb8460
-[1/1] example-01: OK
-Finished: 1 OK, 0 non-OK. Output: /data/derived/fsharvest-example
+FSHarvest v1.0.4 | FreeSurfer regional feature extraction
+Developer: zh1peng
+[EXTRACT] Starting 10 subjects; progress is reported after each subject finishes.
+...
+[10/10] example-10: OK
+[DONE] Finished: 10 OK, 0 non-OK across all requested phases.
+Table status: OK=10, PARTIAL=0, FAILED=0, NOT_RUN=0
+Run exit code: 0
+Run log: /data/derived/fsharvest-dk68-example/logs/run_20260909T011641_543148Z_74b3105e.log
 ```
 
 ## 使用指南
 
 - 第一次使用：阅读[五分钟快速开始](/guide/quick-start)。
+- 复制 CLI 或下载 SH 脚本，并对照实际结果：阅读[10 位受试者真实运行示例](/tutorials/ten-subject-example)。
 - 查看输入目录要求和工具范围：阅读[工具概述](/guide/introduction)。
 - 选择 Schaefer、Glasser 等脑区分区：阅读[脑区分区与处理方式](/guide/atlases)。
 - 了解每个表格的内容：阅读[输出与数据表](/guide/outputs)。

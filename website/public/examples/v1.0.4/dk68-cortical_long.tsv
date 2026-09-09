@@ -1,0 +1,4 @@
+folder_id	atlas	hemisphere	region	numvert	surfarea	grayvol	thickavg
+example-01	dk68	lh	bankssts	1283	864	1975	2.501
+example-01	dk68	lh	caudalanteriorcingulate	1332	858	2481	2.694
+example-01	dk68	lh	caudalmiddlefrontal	3908	2495	7550	2.75

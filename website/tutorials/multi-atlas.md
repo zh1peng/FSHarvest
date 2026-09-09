@@ -71,14 +71,12 @@ DK68、Destrieux 则直接读取 recon-all 已生成的统计文件。
 
 ## 检查实际选择和完成数量
 
-`atlas_manifest.tsv` 会记录每个分区的预期区域数和完整受试者数。下面是一次真实单受试者
-DK68 + Schaefer100 运行的简化输出：
+`atlas_manifest.tsv` 会记录每个分区的预期区域数和完整受试者数。下面来自 1.0.4 在 linux212
+上前 10 位受试者的六图谱运行，保留部分列；所有图谱都有 10 位完整受试者：
 
-```text
-key          expected_total  kind      source_subject  observed_subjects_complete
-dk68         68              builtin                   1
-schaefer100  100             external  fsaverage5      1
-```
+<<< @/public/examples/v1.0.4/six-atlas-atlas_manifest.tsv{text}
+
+[对应的 CLI、可下载 SH 脚本与完整输出](./ten-subject-example#six-atlas)。
 
 ## 如何选择分区尺度
 

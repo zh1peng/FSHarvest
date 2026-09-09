@@ -8,6 +8,7 @@ export default defineConfig({
   cleanUrls: true,
   lastUpdated: true,
   appearance: true,
+  markdown: { codeCopyButtonTitle: '复制代码' },
   sitemap: { hostname: siteUrl },
   head: [
     ['link', { rel: 'icon', type: 'image/png', href: '/FSHarvest/fsharvest-logo.png' }],
@@ -62,6 +63,7 @@ export default defineConfig({
           {
             text: '使用教程',
             items: [
+              { text: '10 位受试者真实运行示例', link: '/tutorials/ten-subject-example' },
               { text: '批量提取 FreeSurfer 指标', link: '/tutorials/basic-extraction' },
               { text: '同时提取多个脑区分区', link: '/tutorials/multi-atlas' },
               { text: '批量查看 QC 图', link: '/tutorials/qc-workflow' },

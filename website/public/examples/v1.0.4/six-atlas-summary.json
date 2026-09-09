@@ -1,0 +1,137 @@
+{
+  "tool_version": "1.0.4",
+  "runtime_freesurfer_version": "freesurfer-linux-ubuntu22_x86_64-7.4.1-20230614-7eb8460",
+  "n_subjects": 10,
+  "jobs": 5,
+  "limit": 10,
+  "atlases": [
+    "dk68",
+    "dk308",
+    "destrieux",
+    "schaefer100",
+    "schaefer200",
+    "schaefer300"
+  ],
+  "qc_plots": false,
+  "export_to_freesurfer": false,
+  "started_at_utc": "2026-09-09T01:16:55.162143+00:00",
+  "finished_at_utc": "2026-09-09T01:36:31.894989+00:00",
+  "source_tag": "v1.0.4",
+  "source_commit": "b4113d19f977090f4802edd32291a302d16ee66d",
+  "host": "linux212",
+  "date": "2026-09-09",
+  "public_ids": "Input folder and subject identifiers replaced with example-01 through example-10; private paths replaced with example paths.",
+  "status_counts": {
+    "OK": 10
+  },
+  "cache_hits_latest_run": 0,
+  "tables": {
+    "subjects.tsv": {
+      "rows": 10,
+      "columns": 30
+    },
+    "cortical_long.tsv": {
+      "rows": 11240,
+      "columns": 18
+    },
+    "aseg_long.tsv": {
+      "rows": 450,
+      "columns": 16
+    },
+    "global_measures_long.tsv": {
+      "rows": 200,
+      "columns": 11
+    },
+    "all_features_wide.tsv": {
+      "rows": 10,
+      "columns": 10191
+    },
+    "region_differences.tsv": {
+      "rows": 0,
+      "columns": 7
+    },
+    "wide/destrieux.tsv": {
+      "rows": 10,
+      "columns": 1342
+    },
+    "wide/dk308.tsv": {
+      "rows": 10,
+      "columns": 2782
+    },
+    "wide/dk68.tsv": {
+      "rows": 10,
+      "columns": 622
+    },
+    "wide/schaefer100.tsv": {
+      "rows": 10,
+      "columns": 910
+    },
+    "wide/schaefer200.tsv": {
+      "rows": 10,
+      "columns": 1810
+    },
+    "wide/schaefer300.tsv": {
+      "rows": 10,
+      "columns": 2710
+    }
+  },
+  "atlases_summary": [
+    {
+      "key": "dk68",
+      "expected_total": "68",
+      "lh_expected_rows": "34",
+      "rh_expected_rows": "34",
+      "kind": "builtin",
+      "source_subject": "",
+      "observed_subjects_complete": "10"
+    },
+    {
+      "key": "dk308",
+      "expected_total": "308",
+      "lh_expected_rows": "152",
+      "rh_expected_rows": "156",
+      "kind": "external",
+      "source_subject": "fsaverage",
+      "observed_subjects_complete": "10"
+    },
+    {
+      "key": "destrieux",
+      "expected_total": "148",
+      "lh_expected_rows": "74",
+      "rh_expected_rows": "74",
+      "kind": "builtin",
+      "source_subject": "",
+      "observed_subjects_complete": "10"
+    },
+    {
+      "key": "schaefer100",
+      "expected_total": "100",
+      "lh_expected_rows": "50",
+      "rh_expected_rows": "50",
+      "kind": "external",
+      "source_subject": "fsaverage5",
+      "observed_subjects_complete": "10"
+    },
+    {
+      "key": "schaefer200",
+      "expected_total": "200",
+      "lh_expected_rows": "100",
+      "rh_expected_rows": "100",
+      "kind": "external",
+      "source_subject": "fsaverage5",
+      "observed_subjects_complete": "10"
+    },
+    {
+      "key": "schaefer300",
+      "expected_total": "300",
+      "lh_expected_rows": "150",
+      "rh_expected_rows": "150",
+      "kind": "external",
+      "source_subject": "fsaverage5",
+      "observed_subjects_complete": "10"
+    }
+  ],
+  "region_difference_rows_with_names": 0,
+  "qc_pngs": 0,
+  "log_count": 1
+}

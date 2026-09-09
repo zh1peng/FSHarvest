@@ -34,11 +34,16 @@ fsharvest /data/study/freesurfer \
   --limit 10
 ```
 
-成功结束时，最后一行会给出 `OK` 和非 `OK` 的数量：
+成功结束时，汇总部分会给出 `OK` 和非 `OK` 的数量。以下省略时间戳：
 
 ```text
-Finished: 10 OK, 0 non-OK. Output: /data/derived/fsharvest
+[DONE] Finished: 10 OK, 0 non-OK across all requested phases.
+Table status: OK=10, PARTIAL=0, FAILED=0, NOT_RUN=0
+Run exit code: 0
 ```
+
+终端还会显示本次 `Run log:` 路径；总日志由 package 自动保存。
+[完整实测输出、CLI 和 SH 脚本](./ten-subject-example)以 1.0.4 的前 10 位受试者为例。
 
 ## 3. 检查状态
 
@@ -46,7 +51,7 @@ Finished: 10 OK, 0 non-OK. Output: /data/derived/fsharvest
 cut -f1,2,7,17 /data/derived/fsharvest/subjects.tsv | column -t -s $'\t'
 ```
 
-示例：
+下面是说明错误格式的示意，不是本次 10 位受试者的实际结果（本次全部为 `OK`）：
 
 ```text
 subject_id  folder_id   status  errors

@@ -1,0 +1,67 @@
+{
+  "tool_version": "1.0.4",
+  "runtime_freesurfer_version": "freesurfer-linux-ubuntu22_x86_64-7.4.1-20230614-7eb8460",
+  "n_subjects": 10,
+  "jobs": 5,
+  "limit": 10,
+  "atlases": [
+    "dk68"
+  ],
+  "qc_plots": false,
+  "export_to_freesurfer": false,
+  "started_at_utc": "2026-09-09T01:17:25.301044+00:00",
+  "finished_at_utc": "2026-09-09T01:17:25.468601+00:00",
+  "source_tag": "v1.0.4",
+  "source_commit": "b4113d19f977090f4802edd32291a302d16ee66d",
+  "host": "linux212",
+  "date": "2026-09-09",
+  "public_ids": "Input folder and subject identifiers replaced with example-01 through example-10; private paths replaced with example paths.",
+  "status_counts": {
+    "OK": 10
+  },
+  "cache_hits_latest_run": 10,
+  "tables": {
+    "subjects.tsv": {
+      "rows": 10,
+      "columns": 30
+    },
+    "cortical_long.tsv": {
+      "rows": 680,
+      "columns": 18
+    },
+    "aseg_long.tsv": {
+      "rows": 450,
+      "columns": 16
+    },
+    "global_measures_long.tsv": {
+      "rows": 200,
+      "columns": 11
+    },
+    "all_features_wide.tsv": {
+      "rows": 10,
+      "columns": 687
+    },
+    "region_differences.tsv": {
+      "rows": 0,
+      "columns": 7
+    },
+    "wide/dk68.tsv": {
+      "rows": 10,
+      "columns": 622
+    }
+  },
+  "atlases_summary": [
+    {
+      "key": "dk68",
+      "expected_total": "68",
+      "lh_expected_rows": "34",
+      "rh_expected_rows": "34",
+      "kind": "builtin",
+      "source_subject": "",
+      "observed_subjects_complete": "10"
+    }
+  ],
+  "region_difference_rows_with_names": 0,
+  "qc_pngs": 0,
+  "log_count": 2
+}

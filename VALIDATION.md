@@ -4,6 +4,30 @@ Date: 2026-09-09
 
 ## 1.0.4 verification
 
+### Post-release Pages examples (2026-09-09)
+
+The official v1.0.4 tag was installed into an isolated prefix on linux212 and passed
+the installer check. The first 10 sorted CHCP_FS72 subjects were processed using
+FreeSurfer 7.4.1 with five jobs and no QC or export. Default DK68 extraction returned
+10/10 OK: 680 cortical, 450 aseg and 200 global rows; the combined wide table was
+10 rows by 687 columns. An identical repeat returned 10/10 cache hits and retained
+both independently named run logs.
+
+A separate fresh run selected DK68, DK308, Destrieux, Schaefer100, Schaefer200 and
+Schaefer300. All 10 subjects and all 60 subject-atlas combinations were complete,
+with exit code 0 and a logged elapsed time of 00:19:37 under the current host load.
+The run produced 11,240 cortical, 450 aseg and 200 global rows; the combined wide
+table was 10 rows by 10,191 columns. Both runs had header-only region-difference
+reports and zero QC PNGs. External atlas projection and anatomical statistics were
+actually executed with the released v1.0.4 package in a fresh output directory.
+
+The downloadable DK68 shell example was also executed after replacing its paths.
+Its cortical, aseg and global long tables and combined wide table were identical
+to the direct CLI results. Published log and TSV excerpts replace subject identifiers
+and private paths. No reconstruction or QC was run for these examples.
+
+### Pre-release automated checks
+
 All 78 tests passed on Windows/Python 3.12. Run-log tests cover combined output and
 errors, UTF-8 text, exit-code preservation, separate logs for repeated runs, the real
 Python entry point and shell setup failures, clean help/version output, overlapping

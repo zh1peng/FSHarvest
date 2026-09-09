@@ -74,7 +74,8 @@ sacct -j 482731 --format=JobID,State,Elapsed,AllocCPUS,MaxRSS,ExitCode
 tail -f logs/fsharvest_482731.out
 ```
 
-计算节点上的日志会包含主机名、实际命令和处理进度。例如：
+计算节点上的日志会包含主机名、实际命令和处理进度。下面是省略时间戳的格式示意，
+并非此次 linux212 示例的 Slurm 运行记录：
 
 ```text
 Host: compute-17
@@ -82,8 +83,13 @@ FreeSurfer: /usr/local/freesurfer/7.4.1
 Discovered 10 subjects; jobs=12; FreeSurfer=freesurfer-linux-ubuntu22_x86_64-7.4.1-20230614-7eb8460
 [1/10] example-01: OK
 ...
-Finished: 10 OK, 0 non-OK. Outputs: /data/results/fsharvest
+[DONE] Finished: 10 OK, 0 non-OK across all requested phases.
+Table status: OK=10, PARTIAL=0, FAILED=0, NOT_RUN=0
+Run exit code: 0
 ```
+
+1.0.4 还会自动在 `OUTPUT/logs/` 保存独立的总日志，并在终端显示 `Run log:` 路径。
+Slurm 的 `.out` / `.err` 用于记录作业调度和启动情况，package 总日志用于记录每次提取。
 
 作业正常结束后，还应查看 `OUTPUT/subjects.tsv`。Slurm 显示 `COMPLETED` 只说明进程正常退出；是否每位受试者都成功，仍以 `subjects.tsv` 中的 `status` 为准。
 

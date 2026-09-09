@@ -1,9 +1,12 @@
 # 输出与数据表
 
 FSHarvest 生成长表（long format）、宽表（wide format）、逐受试者缓存和运行记录。
-下列片段来自 `linux212` 上的真实结果；公开展示时已将受试者名称和路径替换。
+下列片段更新自 2026-09-09 在 `linux212` 上使用 **1.0.4** 运行前 10 位受试者的结果；
+公开展示时已将受试者名称和路径替换。[对应命令和完整记录](../tutorials/ten-subject-example)。
 
 ## 输出目录
+
+下面是快速开始中只提取 DK68、不生成 QC 图片的输出结构：
 
 ```text
 OUTPUT/
@@ -15,22 +18,23 @@ OUTPUT/
 ├── atlas_manifest.tsv
 ├── region_differences.tsv
 ├── run_metadata.json
-├── all_qc.html
+├── logs/
+│   ├── run_20260909T011641_543148Z_74b3105e.log  # 首次运行
+│   └── run_20260909T011724_394267Z_0da06c7f.log  # 缓存复用
+├── all_qc.html                 # 本次没有渲染图片，页面仅说明 QC 状态
 ├── wide/
-│   ├── dk68.tsv
-│   └── schaefer100.tsv
-├── archive/RUN_ID/wide/          # 上一次运行中已取消选择的宽表
+│   └── dk68.tsv
 └── per_subject/example-01/
-    ├── label/
-    ├── stats/
     ├── cortical.tsv
     ├── aseg.tsv
     ├── global.tsv
-    ├── qc/dk68_inflated_4view.png
-    ├── qc/dk68_inflated_4view.png.json
     ├── extract.log
     └── status.json
 ```
+
+这里省略了另外 9 位受试者的目录。选择外部分区后，`per_subject/` 中还会出现 `label/`
+和 `stats/`；仅在显式启用 QC 后生成 `qc/*.png` 及其 sidecar 文件。
+减少所选图谱时，旧宽表可能归档至 `archive/RUN_ID/wide/`。
 
 选择外部分区时，程序会创建名称唯一的 `.fsharvest-work-*` 临时目录。该目录及其中的符号链接
 会在正常退出、失败或中断后清理。程序不会删除输出目录中原本存在的 `work/` 或其他目录。
@@ -48,17 +52,27 @@ OUTPUT/
 | `atlas_manifest.tsv` | 分区定义、annot 路径、左右预期区域数和完整受试者数；curated 分区另记录区域名称 SHA-256 |
 | `region_differences.tsv` | 相对图谱定义缺少的名称、多出的名称，以及队列中其他受试者有而该受试者没有的名称 |
 | `run_metadata.json` | run ID、时间、参数、软件版本、分区校验值和输入指纹 |
+| `logs/run_*.log` | 整次命令的横幅、环境准备、进度、错误和退出码；每次运行独立保存 |
+
+## 前 10 位受试者的实际结果
+
+默认 DK68 示例中，`subjects.tsv` 有 10 行、30 列，所有状态均为 `OK`。每位受试者都有
+68 行皮层结果和 45 行 aseg 结果，总共 680 行皮层、450 行 aseg 和 200 行全局指标。
+`all_features_wide.tsv` 为 10 行 × 687 列，`wide/dk68.tsv` 为 10 行 × 622 列。
+行数不含表头；全局指标和 aseg 的数量取决于实际输入。
+
+以下状态片段来自同一命令的第二次运行，因此 `cache_hit=1`。`qc_status` 为空表示本次没有
+请求 QC，不能解读为“QC 已通过”。下载[状态列片段 TSV](/examples/v1.0.4/dk68-subjects.tsv)。
+
+<<< @/public/examples/v1.0.4/dk68-subjects.tsv{text}
 
 ## `cortical_long.tsv` 示例
 
 为了便于阅读，下例只显示部分列：
 
-```text
-folder_id   subject_id  atlas  hemisphere  region                      numvert  surfarea  grayvol  thickavg
-example-01  example-01  dk68   lh          bankssts                    1283     864       1975     2.501
-example-01  example-01  dk68   lh          caudalanteriorcingulate     1332     858       2481     2.694
-example-01  example-01  dk68   lh          caudalmiddlefrontal         3908     2495      7550     2.750
-```
+<<< @/public/examples/v1.0.4/dk68-cortical_long.tsv{text}
+
+这些数值直接来自实际提取结果；[下载本片段](/examples/v1.0.4/dk68-cortical_long.tsv)。
 
 `folder_id` 是输入受试者目录名，程序要求它在一次运行中唯一；`subject_id` 来自 FreeSurfer
 统计文件头，可能在不同目录或多次扫描之间重复。
@@ -69,6 +83,13 @@ example-01  example-01  dk68   lh          caudalmiddlefrontal         3908     
 `folder_id`，不能只用参与者编号。
 
 ## 宽表列名示例
+
+前三位受试者的部分宽表数值如下（省略其他列）：
+
+<<< @/public/examples/v1.0.4/dk68-all_features_wide.tsv{text}
+
+[下载宽表片段](/examples/v1.0.4/dk68-all_features_wide.tsv)。`thickavg` 的单位为 mm，
+示例中的海马体积单位为 mm³。
 
 单个分区的宽表使用半球、区域和指标组成列名：
 

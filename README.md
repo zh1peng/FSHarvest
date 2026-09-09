@@ -27,7 +27,7 @@ Input FreeSurfer folders are read-only by default. Subject-specific external ann
 
 Requirements: Linux, Python 3.9+, a licensed FreeSurfer installation, and `curl` only if re-downloading atlases. Core extraction has no Python package dependencies. QC PNG rendering additionally needs NumPy, Nibabel, Matplotlib, and Pillow (`python3 -m pip install -r requirements-qc.txt`).
 
-FSHarvest 1.0.0 was end-to-end tested with a FreeSurfer 7.4.1 runtime against reconstructions produced by FreeSurfer 7.2.0. Version 1.0.4 adds automatic run logs and has passed 78 automated tests, Ruff, mypy, and the documentation build. Version 1.0.2 aggregation was verified using temporary copies of saved outputs from 554 subjects. FreeSurfer reconstruction, projection and statistics commands were not rerun for 1.0.4. Validate other FreeSurfer releases on representative subjects before study-wide use.
+FSHarvest 1.0.4 adds automatic run logs and has passed 78 automated tests, Ruff, mypy, and the documentation build. Post-release runs on linux212 verified the first 10 FreeSurfer 7.2.0 reconstructions with a FreeSurfer 7.4.1 runtime: DK68 extraction, cache reuse, the downloadable shell example, and fresh extraction of six atlases including DK308 all returned 10/10 OK. See the [commands, logs and output examples](https://zh1peng.github.io/FSHarvest/tutorials/ten-subject-example). No reconstruction or QC was run for these new examples; 1.0.0 included real-data QC verification. Version 1.0.2 aggregation was verified using temporary copies of saved outputs from 554 subjects. Validate other FreeSurfer releases on representative subjects before study-wide use.
 
 ```bash
 cd /path/to/FSHarvest

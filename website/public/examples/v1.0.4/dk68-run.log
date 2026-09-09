@@ -1,0 +1,39 @@
+Run log: /data/derived/fsharvest-dk68-example/logs/run_20260909T011641_543148Z_74b3105e.log
+
+  _____ ____  _   _                           _
+ |  ___/ ___|| | | | __ _ _ ____   _____  ___| |_
+ | |_  \___ \| |_| |/ _` | '__\ \ / / _ \/ __| __|
+ |  _|  ___) |  _  | (_| | |   \ V /  __/\__ \ |_
+ |_|   |____/|_| |_|\__,_|_|    \_/ \___||___/\__|
+
+  FSHarvest v1.0.4 | FreeSurfer regional feature extraction
+  Developer: zh1peng
+  License: MIT | Source: https://github.com/zh1peng/FSHarvest
+
+[2026-09-09 09:16:41 +0800] [SETUP] Preparing FreeSurfer environment...
+[2026-09-09 09:16:41 +0800 | elapsed 00:00:00] [CHECK] Checking options, input directory and FreeSurfer environment...
+Input: /data/study/freesurfer
+Output: /data/derived/fsharvest-dk68-example
+Atlases: dk68 | Parallel jobs: 5
+[2026-09-09 09:16:41 +0800 | elapsed 00:00:00] [CHECK] Resolving atlas definitions and validating atlas assets...
+[2026-09-09 09:16:41 +0800 | elapsed 00:00:00] [DISCOVER] Finding FreeSurfer subjects...
+[2026-09-09 09:16:42 +0800 | elapsed 00:00:00] [PREPARE] Checking template inputs before extraction...
+[2026-09-09 09:16:42 +0800 | elapsed 00:00:00] Discovered 10 subjects; jobs=5; FreeSurfer=freesurfer-linux-ubuntu22_x86_64-7.4.1-20230614-7eb8460
+[2026-09-09 09:16:42 +0800 | elapsed 00:00:00] [EXTRACT] Starting 10 subjects; progress is reported after each subject finishes.
+[2026-09-09 09:16:42 +0800 | elapsed 00:00:00] [1/10] example-02: OK
+[2026-09-09 09:16:42 +0800 | elapsed 00:00:00] [2/10] example-01: OK
+[2026-09-09 09:16:42 +0800 | elapsed 00:00:00] [3/10] example-05: OK
+[2026-09-09 09:16:42 +0800 | elapsed 00:00:00] [4/10] example-04: OK
+[2026-09-09 09:16:42 +0800 | elapsed 00:00:00] [5/10] example-03: OK
+[2026-09-09 09:16:42 +0800 | elapsed 00:00:00] [6/10] example-07: OK
+[2026-09-09 09:16:42 +0800 | elapsed 00:00:00] [7/10] example-09: OK
+[2026-09-09 09:16:42 +0800 | elapsed 00:00:00] [8/10] example-06: OK
+[2026-09-09 09:16:42 +0800 | elapsed 00:00:00] [9/10] example-08: OK
+[2026-09-09 09:16:42 +0800 | elapsed 00:00:00] [10/10] example-10: OK
+[2026-09-09 09:16:42 +0800 | elapsed 00:00:00] [AGGREGATE] Writing cohort tables and region-difference report...
+[2026-09-09 09:16:42 +0800 | elapsed 00:00:00] [DONE] Finished: 10 OK, 0 non-OK across all requested phases.
+Table status: OK=10, PARTIAL=0, FAILED=0, NOT_RUN=0
+Output: /data/derived/fsharvest-dk68-example
+Subject logs: /data/derived/fsharvest-dk68-example/per_subject/<folder_id>/extract.log
+Run exit code: 0
+Run log: /data/derived/fsharvest-dk68-example/logs/run_20260909T011641_543148Z_74b3105e.log
