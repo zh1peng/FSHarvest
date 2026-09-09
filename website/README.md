@@ -1,6 +1,8 @@
 # FSHarvest website
 
-VitePress documentation site for FSHarvest. Chinese is the primary locale; an English entry point is available under `/en/`.
+VitePress documentation for FSHarvest in Chinese (root) and English (`/en/`). Both locales have matching guide, tutorial,
+and reference paths. Update both versions when changing behavior or examples. They share the scripts, logs, images, and
+TSV data in `public/examples/`; keep numerical results and command options consistent across translations.
 
 ```bash
 npm install

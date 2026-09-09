@@ -1,15 +1,26 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { withBase } from 'vitepress'
+import { useData, withBase } from 'vitepress'
 
 const props = defineProps<{ tsv: string; caption: string; download: string }>()
+const { lang } = useData()
+const isEnglish = computed(() => lang.value.startsWith('en'))
+const messages = computed(() => isEnglish.value ? {
+  search: 'Search example data', placeholder: 'Subject, region, or value', reset: 'Reset', download: 'Download TSV',
+  showing: 'Showing', rows: 'example rows. Click a column heading to sort; — indicates an empty value.',
+  scroll: ', scroll horizontally', empty: 'Empty value', noMatch: 'No matching example data. Change your search or reset.'
+} : {
+  search: '搜索示例数据', placeholder: '输入受试者、脑区或数值', reset: '重置', download: '下载 TSV',
+  showing: '显示', rows: '行示例数据。点击列标题排序；— 表示空值。',
+  scroll: '，可横向滚动', empty: '空值', noMatch: '没有匹配的示例数据，请修改搜索内容或重置。'
+})
 const query = ref('')
 const sortColumn = ref(-1)
 const descending = ref(false)
 const data = computed(() => props.tsv.split(/\r?\n/).filter(line => line.length > 0).map(line => line.split('\t')))
 const headers = computed(() => data.value[0])
 const rows = computed(() => data.value.slice(1))
-const labels: Record<string, string> = {
+const chineseLabels: Record<string, string> = {
   folder_id: '受试者目录', status: '处理状态', fs_version: '重建版本',
   cortical_rows: '皮层结果行数', aseg_rows: 'aseg 结果行数', qc_status: 'QC 状态', cache_hit: '复用缓存',
   atlas: '图谱', hemisphere: '半球', region: '脑区名称', numvert: '顶点数',
@@ -21,7 +32,20 @@ const labels: Record<string, string> = {
   dk68__R_bankssts_thickavg: '右 bankssts 厚度（mm）',
   'aseg__Left-Hippocampus__volume_mm3': '左海马体积（mm³）'
 }
-const collator = new Intl.Collator('zh-CN', { numeric: true })
+const englishLabels: Record<string, string> = {
+  folder_id: 'Subject directory', status: 'Processing status', fs_version: 'Reconstruction version',
+  cortical_rows: 'Cortical rows', aseg_rows: 'Aseg rows', qc_status: 'QC status', cache_hit: 'Cache hit',
+  atlas: 'Atlas', hemisphere: 'Hemisphere', region: 'Region name', numvert: 'Vertices',
+  surfarea: 'Surface area (mm²)', grayvol: 'Gray matter volume (mm³)', thickavg: 'Mean thickness (mm)',
+  key: 'Atlas name', expected_total: 'Expected regions', lh_expected_rows: 'Left regions',
+  rh_expected_rows: 'Right regions', kind: 'Atlas type', source_subject: 'Source template',
+  observed_subjects_complete: 'Subjects with complete results',
+  dk68__L_bankssts_thickavg: 'Left bankssts thickness (mm)',
+  dk68__R_bankssts_thickavg: 'Right bankssts thickness (mm)',
+  'aseg__Left-Hippocampus__volume_mm3': 'Left hippocampal volume (mm³)'
+}
+const labels = computed(() => isEnglish.value ? englishLabels : chineseLabels)
+const collator = computed(() => new Intl.Collator(lang.value, { numeric: true }))
 const visibleRows = computed(() => {
   const term = query.value.trim().toLowerCase()
   const filtered = rows.value.filter(row => row.some(cell => cell.toLowerCase().includes(term)))
@@ -32,7 +56,7 @@ const visibleRows = computed(() => {
     // Missing values stay last in either direction; they are never treated as zero.
     if (!left || !right) return !left && !right ? 0 : !left ? 1 : -1
     const comparison = Number.isFinite(Number(left)) && Number.isFinite(Number(right))
-      ? Number(left) - Number(right) : collator.compare(left, right)
+      ? Number(left) - Number(right) : collator.value.compare(left, right)
     return descending.value ? -comparison : comparison
   })
 })
@@ -50,14 +74,14 @@ function reset() {
 <template>
   <section class="example-table" :aria-label="caption">
     <div class="table-controls">
-      <label>搜索示例数据
-        <input v-model="query" type="search" placeholder="输入受试者、脑区或数值" />
+      <label>{{ messages.search }}
+        <input v-model="query" type="search" :placeholder="messages.placeholder" />
       </label>
-      <button type="button" class="reset" @click="reset">重置</button>
-      <a :href="withBase(download)" download>下载 TSV</a>
+      <button type="button" class="reset" @click="reset">{{ messages.reset }}</button>
+      <a :href="withBase(download)" download>{{ messages.download }}</a>
     </div>
-    <p class="table-hint" aria-live="polite">显示 {{ visibleRows.length }} / {{ rows.length }} 行示例数据。点击列标题排序；— 表示空值。</p>
-    <div class="table-scroll" tabindex="0" role="region" :aria-label="`${caption}，可横向滚动`">
+    <p class="table-hint" aria-live="polite">{{ messages.showing }} {{ visibleRows.length }} / {{ rows.length }} {{ messages.rows }}</p>
+    <div class="table-scroll" tabindex="0" role="region" :aria-label="caption + messages.scroll">
       <table>
         <caption>{{ caption }}</caption>
         <thead><tr>
@@ -72,11 +96,11 @@ function reset() {
         <tbody>
           <tr v-for="(row, index) in visibleRows" :key="index">
             <td v-for="(header, column) in headers" :key="header">
-              <span v-if="row[column] === '' || row[column] === undefined" class="empty" title="空值" aria-label="空值">—</span>
+              <span v-if="row[column] === '' || row[column] === undefined" class="empty" :title="messages.empty" :aria-label="messages.empty">—</span>
               <template v-else>{{ row[column] }}</template>
             </td>
           </tr>
-          <tr v-if="visibleRows.length === 0"><td :colspan="headers.length">没有匹配的示例数据，请修改搜索内容或重置。</td></tr>
+          <tr v-if="visibleRows.length === 0"><td :colspan="headers.length">{{ messages.noMatch }}</td></tr>
         </tbody>
       </table>
     </div>

@@ -6,9 +6,21 @@ const siteUrl = 'https://zh1peng.github.io/FSHarvest/'
 export default defineConfig({
   base: '/FSHarvest/',
   cleanUrls: true,
+  srcExclude: ['README.md'],
   lastUpdated: true,
   appearance: true,
-  markdown: { codeCopyButtonTitle: '复制代码' },
+  markdown: {
+    codeCopyButtonTitle: '复制代码',
+    config(md) {
+      const fence = md.renderer.rules.fence!
+      md.renderer.rules.fence = (tokens, index, options, env, self) => {
+        const html = fence(tokens, index, options, env, self)
+        return env.relativePath?.startsWith('en/')
+          ? html.replace('<button title="复制代码"', '<button title="Copy code"')
+          : html
+      }
+    },
+  },
   sitemap: { hostname: siteUrl },
   head: [
     ['link', { rel: 'icon', type: 'image/png', href: '/FSHarvest/fsharvest-logo.png' }],
@@ -31,7 +43,7 @@ export default defineConfig({
       titleTemplate: ':title · FSHarvest',
       description: '批量提取 FreeSurfer 脑区指标，并记录处理状态、软件版本和运行参数',
       themeConfig: {
-        i18nRouting: false,
+        i18nRouting: true,
         logo: '/fsharvest-logo.png',
         siteTitle: 'FSHarvest',
         nav: [
@@ -93,33 +105,82 @@ export default defineConfig({
         search: { provider: 'local' },
         socialLinks: [{ icon: 'github', link: repository }],
         footer: {
-          message: 'FSHarvest 代码采用 MIT 许可证；随附脑区分区文件遵循各自的上游许可证。中文文档为当前完整版本。',
+          message: 'FSHarvest 代码采用 MIT 许可证；随附脑区分区文件遵循各自的上游许可证。',
           copyright: 'Copyright © FSHarvest contributors',
         },
       },
     },
     en: {
-      label: 'English summary',
+      label: 'English',
       lang: 'en-US',
       link: '/en/',
       title: 'FSHarvest',
       titleTemplate: ':title · FSHarvest',
       description: 'Batch extraction of FreeSurfer regional measures',
       themeConfig: {
-        i18nRouting: false,
+        i18nRouting: true,
         logo: '/fsharvest-logo.png',
         siteTitle: 'FSHarvest',
         nav: [
-          { text: 'English home', link: '/en/' },
-          { text: '中文文档', link: '/' },
-          { text: 'GitHub', link: repository },
+          { text: 'Getting started', link: '/en/guide/introduction' },
+          { text: 'Outputs', link: '/en/guide/outputs' },
+          { text: 'Tutorials', link: '/en/tutorials/basic-extraction' },
+          { text: 'Parcellations', link: '/en/guide/atlases' },
+          { text: 'CLI reference', link: '/en/reference/cli' },
         ],
-        sidebar: false,
-        outline: false,
+        sidebar: [
+          {
+            text: 'Getting started',
+            items: [
+              { text: 'Home', link: '/en/' },
+              { text: 'Overview', link: '/en/guide/introduction' },
+              { text: 'Installation', link: '/en/guide/installation' },
+              { text: 'Five-minute quick start', link: '/en/guide/quick-start' },
+            ],
+          },
+          {
+            text: 'Core documentation',
+            items: [
+              { text: 'Outputs and data tables', link: '/en/guide/outputs' },
+              { text: 'Parcellations and extraction', link: '/en/guide/atlases' },
+              { text: 'Surface QC images', link: '/en/guide/qc' },
+              { text: 'Caching and run records', link: '/en/guide/reproducibility' },
+            ],
+          },
+          {
+            text: 'Tutorials',
+            items: [
+              { text: 'Ten-subject worked example', link: '/en/tutorials/ten-subject-example' },
+              { text: 'Batch extraction', link: '/en/tutorials/basic-extraction' },
+              { text: 'Extracting multiple parcellations', link: '/en/tutorials/multi-atlas' },
+              { text: 'Reviewing QC images', link: '/en/tutorials/qc-workflow' },
+              { text: 'Running on Slurm', link: '/en/tutorials/slurm' },
+            ],
+          },
+          {
+            text: 'Reference',
+            items: [
+              { text: 'Command-line reference', link: '/en/reference/cli' },
+              { text: 'Validation and compatibility', link: '/en/reference/validation' },
+              { text: 'Citation and licensing', link: '/en/reference/citation' },
+            ],
+          },
+        ],
+        outline: { level: [2, 3], label: 'On this page' },
+        docFooter: { prev: 'Previous page', next: 'Next page' },
+        lastUpdated: { text: 'Last updated' },
+        editLink: {
+          pattern: `${repository}/edit/main/website/:path`,
+          text: 'Edit this page on GitHub',
+        },
+        sidebarMenuLabel: 'Menu',
+        returnToTopLabel: 'Back to top',
+        langMenuLabel: 'Change language',
+        darkModeSwitchLabel: 'Appearance',
         search: { provider: 'local' },
         socialLinks: [{ icon: 'github', link: repository }],
         footer: {
-          message: 'English documentation is under development.',
+          message: 'FSHarvest code is MIT-licensed; bundled parcellations retain their upstream licenses.',
           copyright: 'Copyright © FSHarvest contributors',
         },
       },
