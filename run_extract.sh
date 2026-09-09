@@ -8,6 +8,10 @@ if [[ $# -lt 2 ]]; then
   exit 64
 fi
 
+if [[ "${FSHARVEST_RUN_LOG_ACTIVE:-}" != "1" ]]; then
+  exec python3 -c 'import sys; from pathlib import Path; sys.path.insert(0, str(Path(sys.argv[1]).parent)); from fs_extract_all import cli; raise SystemExit(cli(sys.argv[2:], launcher=sys.argv[1]))' "${SCRIPT_DIR}/run_extract.sh" "$@"
+fi
+
 python3 -c 'import sys; sys.path.insert(0, sys.argv[1]); from fs_extract_all import print_banner; print_banner()' "${SCRIPT_DIR}"
 echo "[$(date '+%Y-%m-%d %H:%M:%S %z')] [SETUP] Preparing FreeSurfer environment..."
 

@@ -18,6 +18,7 @@ import math
 import os
 import re
 import shutil
+import signal
 import socket
 import struct
 import subprocess
@@ -34,7 +35,7 @@ from typing import Any, Iterable, Iterator, Optional
 from urllib.parse import quote
 
 
-TOOL_VERSION = "1.0.3"
+TOOL_VERSION = "1.0.4"
 CACHE_SCHEMA_VERSION = 1
 OUTPUT_SCHEMA_VERSION = 1
 TOOL_NAME = "FSHarvest"
@@ -2592,6 +2593,18 @@ def print_progress(message: str, started: float, *, error: bool = False) -> None
     )
 
 
+def validate_output_directory(subjects_dir: Path, output_dir: Path) -> Path:
+    subjects_root = subjects_dir.resolve()
+    output_root = output_dir.resolve()
+    if (
+        output_root == subjects_root
+        or output_root.is_relative_to(subjects_root)
+        or subjects_root.is_relative_to(output_root)
+    ):
+        raise ValueError("Input and output directories must not contain one another.")
+    return output_root
+
+
 def _main(argv: Optional[list[str]], resources: RunResources, started: float) -> int:
     args = parse_args(argv)
     # The shell launcher displays the same banner before FreeSurfer setup.
@@ -2620,13 +2633,7 @@ def _main(argv: Optional[list[str]], resources: RunResources, started: float) ->
             )
 
     subjects_root = args.subjects_dir.resolve()
-    output_root = args.output_dir.resolve()
-    if (
-        output_root == subjects_root
-        or output_root.is_relative_to(subjects_root)
-        or subjects_root.is_relative_to(output_root)
-    ):
-        raise ValueError("Input and output directories must not contain one another.")
+    output_root = validate_output_directory(args.subjects_dir, args.output_dir)
 
     atlas_root = args.atlas_dir.resolve()
     print_progress("[CHECK] Resolving atlas definitions and validating atlas assets...", started)
@@ -2910,14 +2917,78 @@ def main(argv: Optional[list[str]] = None) -> int:
         resources.cleanup()
 
 
-if __name__ == "__main__":
+def run_logged(argv: list[str], launcher: Optional[str] = None) -> int:
+    """Capture the complete CLI, including shell setup, without user-script tee."""
+    args = parse_args(argv)
+    output_root = validate_output_directory(args.subjects_dir, args.output_dir)
+    log_dir = output_root / "logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S_%fZ")
+    log_path = log_dir / f"run_{stamp}_{uuid.uuid4().hex[:8]}.log"
+    command = ["bash", launcher] if launcher else [sys.executable, str(Path(__file__).resolve())]
+    environment = dict(os.environ, FSHARVEST_RUN_LOG_ACTIVE="1", PYTHONUNBUFFERED="1", PYTHONIOENCODING="utf-8")
+    with log_path.open("x", encoding="utf-8") as log:
+        def emit(text: str) -> None:
+            log.write(text)
+            log.flush()
+            sys.stdout.write(text)
+            sys.stdout.flush()
+
+        emit(f"Run log: {log_path}\n")
+        with subprocess.Popen(
+            [*command, *argv], stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            text=True, encoding="utf-8", errors="replace", env=environment,
+            start_new_session=os.name != "nt",
+        ) as process:
+            def forward_termination(signum: int, _frame: Any) -> None:
+                if process.poll() is None:
+                    if sys.platform == "win32":
+                        process.terminate()
+                    else:
+                        os.killpg(process.pid, signum)
+
+            previous_termination = signal.signal(signal.SIGTERM, forward_termination)
+            try:
+                assert process.stdout is not None
+                for line in process.stdout:
+                    emit(line)
+                result = process.wait()
+            except KeyboardInterrupt:
+                forward_termination(signal.SIGINT, None)
+                emit("ERROR: interrupted\n")
+                result = 130
+            finally:
+                signal.signal(signal.SIGTERM, previous_termination)
+                if process.poll() is None:
+                    try:
+                        process.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        if sys.platform == "win32":
+                            process.kill()
+                        else:
+                            os.killpg(process.pid, signal.SIGKILL)
+                        process.wait()
+        if result < 0:
+            result = 128 - result
+        emit(f"Run exit code: {result}\nRun log: {log_path}\n")
+        return result
+
+
+def cli(argv: Optional[list[str]] = None, launcher: Optional[str] = None) -> int:
     try:
-        raise SystemExit(main())
+        arguments = list(sys.argv[1:] if argv is None else argv)
+        if os.environ.pop("FSHARVEST_RUN_LOG_ACTIVE", "") == "1":
+            return main(arguments)
+        return run_logged(arguments, launcher)
     except KeyboardInterrupt:
         print("ERROR: interrupted", file=sys.stderr)
-        raise SystemExit(130)
+        return 130
     except Exception as exc:
         if os.environ.get("FSHARVEST_DEBUG"):
             raise
         print(f"ERROR: {exc}", file=sys.stderr)
-        raise SystemExit(1)
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(cli())

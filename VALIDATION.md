@@ -2,6 +2,17 @@
 
 Date: 2026-09-09
 
+## 1.0.4 verification
+
+All 78 tests passed on Windows/Python 3.12. Run-log tests cover combined output and
+errors, UTF-8 text, exit-code preservation, separate logs for repeated runs, the real
+Python entry point and shell setup failures, clean help/version output, overlapping
+input/output rejection, and failure to create the log directory before work starts.
+Ruff, mypy, Bash syntax and the VitePress documentation build passed.
+
+FreeSurfer commands were substituted in extraction integration tests. No new real-data
+reconstruction, projection, statistics-generation or QC run was performed for 1.0.4.
+
 ## 1.0.3 verification
 
 All 72 tests passed on Windows/Python 3.12. New tests cover startup metadata, phase

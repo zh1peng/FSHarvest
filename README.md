@@ -27,7 +27,7 @@ Input FreeSurfer folders are read-only by default. Subject-specific external ann
 
 Requirements: Linux, Python 3.9+, a licensed FreeSurfer installation, and `curl` only if re-downloading atlases. Core extraction has no Python package dependencies. QC PNG rendering additionally needs NumPy, Nibabel, Matplotlib, and Pillow (`python3 -m pip install -r requirements-qc.txt`).
 
-FSHarvest 1.0.0 was end-to-end tested with a FreeSurfer 7.4.1 runtime against reconstructions produced by FreeSurfer 7.2.0. Version 1.0.3 adds the startup banner and built-in progress reporting and has passed 72 automated tests, Ruff, mypy, and the documentation build. Version 1.0.2 aggregation was verified using temporary copies of saved outputs from 554 subjects. FreeSurfer reconstruction, projection and statistics commands were not rerun for 1.0.3. Validate other FreeSurfer releases on representative subjects before study-wide use.
+FSHarvest 1.0.0 was end-to-end tested with a FreeSurfer 7.4.1 runtime against reconstructions produced by FreeSurfer 7.2.0. Version 1.0.4 adds automatic run logs and has passed 78 automated tests, Ruff, mypy, and the documentation build. Version 1.0.2 aggregation was verified using temporary copies of saved outputs from 554 subjects. FreeSurfer reconstruction, projection and statistics commands were not rerun for 1.0.4. Validate other FreeSurfer releases on representative subjects before study-wide use.
 
 ```bash
 cd /path/to/FSHarvest
@@ -94,7 +94,7 @@ fsharvest INPUT OUTPUT --atlases dk68 schaefer100 --export-to-freesurfer
 
 Without `--atlases`, FSHarvest extracts only `dk68`. Every other atlas is opt-in so routine runs remain fast and produce compact tables.
 
-## Console progress
+## Console progress and run logs
 
 Normal runs display an ASCII FSHarvest logo, the package version, developer `zh1peng`,
 license and repository URL. The shell launcher announces FreeSurfer environment setup;
@@ -105,13 +105,22 @@ Timestamped messages announce validation, subject discovery, extraction, optiona
 and QC, and cohort aggregation. Subject updates use `[completed/total]`, include elapsed
 time and mark cache hits. Extraction is announced before the first subject finishes;
 aggregation is announced before tables are written. Messages are flushed immediately
-and use plain text suitable for terminals, `tee` and batch-job logs.
+and use plain text suitable for terminals and batch-job logs.
+
+The command automatically saves the combined console output and errors to a unique
+`OUTPUT/logs/run_<UTC timestamp>_<unique suffix>.log`, while continuing to display them
+in the terminal. The log includes the startup banner, shell environment setup, progress,
+errors and exit code. Its path is printed at startup and completion. Repeated runs keep
+separate logs; per-subject `extract.log` files remain available for command-level details.
+This works with `fsharvest`, `run_extract.sh` and `python fs_extract_all.py`.
+Argument parsing and output-path checks happen before log creation; errors before a safe,
+writable log location is available are reported in the terminal.
 
 The final summary shows the result across all requested phases, separate table-status
 counts, elapsed time, output and per-subject log paths, plus the QC report path when QC
 was requested. Partial results remain visible and retain their nonzero exit code.
 `--help` and `--version` remain concise and do not display the banner or initialize
-FreeSurfer. No progress echoes are needed in user scripts.
+FreeSurfer or create logs. No progress echoes or `tee` are needed in user scripts.
 
 ## Custom annotations
 
@@ -268,6 +277,7 @@ OUTPUT/
 ├── atlas_manifest.tsv           # atlas definitions and completeness counts
 ├── region_differences.tsv       # expected-name and within-cohort differences
 ├── run_metadata.json
+├── logs/run_TIMESTAMP_SUFFIX.log # complete console output and errors, one file per run
 ├── all_qc.html                   # portable cohort-level QC gallery
 ├── wide/
 │   ├── dk68.tsv

@@ -2,6 +2,12 @@
 
 All notable changes to FSHarvest are recorded here. The project follows semantic versioning once a release is tagged.
 
+## 1.0.4 - 2026-09-09
+
+- Save complete CLI output and errors to a unique run log automatically, including launcher setup and exit status; user scripts no longer need `tee`.
+- Keep terminal output visible and preserve failure exit codes, with separate log files for repeated runs.
+- Keep help/version queries free of log files and reject overlapping input/output paths before creating logs.
+
 ## 1.0.3 - 2026-09-09
 
 - Display a package-owned ASCII startup banner with version, developer, license and repository information.

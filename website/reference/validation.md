@@ -25,6 +25,15 @@
 它不等同于对 `mri_surf2surf` 分区投影本身的验证。仓库中的
 `validation/validate_builtin_recompute.py` 可以重复执行完整检查。
 
+## 1.0.4 的检查结果
+
+Windows / Python 3.12 上的 78 项测试、Ruff、mypy、Bash 语法检查及文档构建通过。
+总日志测试覆盖标准输出和错误合并、UTF-8 文本、退出码保留、重复运行生成独立日志、
+Python 命令入口和 shell 环境准备失败、帮助和版本查询不生成日志，以及在工作开始前
+拒绝输入输出路径重叠或无法创建日志目录的情况。
+
+提取集成测试使用 FreeSurfer 命令替身；本次未新增真实数据重建、投影、统计计算或 QC 运行。
+
 ## 1.0.3 的检查结果
 
 Windows / Python 3.12 上的 72 项测试、Ruff、mypy、Bash 语法检查及文档构建通过。
