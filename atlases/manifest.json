@@ -196,6 +196,86 @@
       "sha256": "9e4aa19a1b4f9514d8c1385c607652124007ebc48c9cdf5aff4f2cba407db44e",
       "source_commit": "4227ee660f216387df4310088dde026d1278dd8e",
       "source_url": "https://raw.githubusercontent.com/MICA-MNI/micapipe/4227ee660f216387df4310088dde026d1278dd8e/parcellations/rh.schaefer-1000_mics.annot"
+    },
+    {
+      "file": "lh.cammoun33.annot",
+      "atlas": "cammoun33",
+      "sha256": "a9a0be43ae18545f3f3449aa63e85420dcc56fa09c4c09f0b0aff863e775f08f",
+      "source_url": "https://files.osf.io/v1/resources/udpv8/providers/osfstorage/67326ef5c41abfb7cd0ddf1d",
+      "source_archive_sha256": "cfd79ae65abe7cb4c7345a1b895acb02769ff176c7ba2f64962c8e7d03d2f33d",
+      "source_member": "fsaverage/atl-Cammoun2012_space-fsaverage_res-033_hemi-L_deterministic.annot"
+    },
+    {
+      "file": "rh.cammoun33.annot",
+      "atlas": "cammoun33",
+      "sha256": "3ff18c14a10ae87cd7edab95cc01413a9aa91e360b4ed5f2761499527b2320de",
+      "source_url": "https://files.osf.io/v1/resources/udpv8/providers/osfstorage/67326ef5c41abfb7cd0ddf1d",
+      "source_archive_sha256": "cfd79ae65abe7cb4c7345a1b895acb02769ff176c7ba2f64962c8e7d03d2f33d",
+      "source_member": "fsaverage/atl-Cammoun2012_space-fsaverage_res-033_hemi-R_deterministic.annot"
+    },
+    {
+      "file": "lh.cammoun60.annot",
+      "atlas": "cammoun60",
+      "sha256": "e993cf71b6c1a20a5f0b17a4490f6dc324889afd657a6a02a2fadf008c6028f6",
+      "source_url": "https://files.osf.io/v1/resources/udpv8/providers/osfstorage/67326ef5c41abfb7cd0ddf1d",
+      "source_archive_sha256": "cfd79ae65abe7cb4c7345a1b895acb02769ff176c7ba2f64962c8e7d03d2f33d",
+      "source_member": "fsaverage/atl-Cammoun2012_space-fsaverage_res-060_hemi-L_deterministic.annot"
+    },
+    {
+      "file": "rh.cammoun60.annot",
+      "atlas": "cammoun60",
+      "sha256": "ea93edd127a96f5af8555d835ce8847cd883f5ec05b9788a739e6cc0f5c92e29",
+      "source_url": "https://files.osf.io/v1/resources/udpv8/providers/osfstorage/67326ef5c41abfb7cd0ddf1d",
+      "source_archive_sha256": "cfd79ae65abe7cb4c7345a1b895acb02769ff176c7ba2f64962c8e7d03d2f33d",
+      "source_member": "fsaverage/atl-Cammoun2012_space-fsaverage_res-060_hemi-R_deterministic.annot"
+    },
+    {
+      "file": "lh.cammoun125.annot",
+      "atlas": "cammoun125",
+      "sha256": "deaf3f1365e2deeff57b50b2552a6e92c6e44902703d55f9ea93582815e6d187",
+      "source_url": "https://files.osf.io/v1/resources/udpv8/providers/osfstorage/67326ef5c41abfb7cd0ddf1d",
+      "source_archive_sha256": "cfd79ae65abe7cb4c7345a1b895acb02769ff176c7ba2f64962c8e7d03d2f33d",
+      "source_member": "fsaverage/atl-Cammoun2012_space-fsaverage_res-125_hemi-L_deterministic.annot"
+    },
+    {
+      "file": "rh.cammoun125.annot",
+      "atlas": "cammoun125",
+      "sha256": "2c9d1f89b1b5c0b552a92aa5cef1312e0925f8c6ec2d10d3866d91699d515df2",
+      "source_url": "https://files.osf.io/v1/resources/udpv8/providers/osfstorage/67326ef5c41abfb7cd0ddf1d",
+      "source_archive_sha256": "cfd79ae65abe7cb4c7345a1b895acb02769ff176c7ba2f64962c8e7d03d2f33d",
+      "source_member": "fsaverage/atl-Cammoun2012_space-fsaverage_res-125_hemi-R_deterministic.annot"
+    },
+    {
+      "file": "lh.cammoun250.annot",
+      "atlas": "cammoun250",
+      "sha256": "39143710b82c0bffb18d7643b995fe167677c1dcd1759844de35fd64bfda1c44",
+      "source_url": "https://files.osf.io/v1/resources/udpv8/providers/osfstorage/67326ef5c41abfb7cd0ddf1d",
+      "source_archive_sha256": "cfd79ae65abe7cb4c7345a1b895acb02769ff176c7ba2f64962c8e7d03d2f33d",
+      "source_member": "fsaverage/atl-Cammoun2012_space-fsaverage_res-250_hemi-L_deterministic.annot"
+    },
+    {
+      "file": "rh.cammoun250.annot",
+      "atlas": "cammoun250",
+      "sha256": "927f0c9a4f1fe9c836b665a5ab06a047ca4810e1e9699a8d742f9aa9e00b0ece",
+      "source_url": "https://files.osf.io/v1/resources/udpv8/providers/osfstorage/67326ef5c41abfb7cd0ddf1d",
+      "source_archive_sha256": "cfd79ae65abe7cb4c7345a1b895acb02769ff176c7ba2f64962c8e7d03d2f33d",
+      "source_member": "fsaverage/atl-Cammoun2012_space-fsaverage_res-250_hemi-R_deterministic.annot"
+    },
+    {
+      "file": "lh.cammoun500.annot",
+      "atlas": "cammoun500",
+      "sha256": "3321d980c418613ce22df2c4ea074852e9eea5133b992b42f20f8b530de64c97",
+      "source_url": "https://files.osf.io/v1/resources/udpv8/providers/osfstorage/67326ef5c41abfb7cd0ddf1d",
+      "source_archive_sha256": "cfd79ae65abe7cb4c7345a1b895acb02769ff176c7ba2f64962c8e7d03d2f33d",
+      "source_member": "fsaverage/atl-Cammoun2012_space-fsaverage_res-500_hemi-L_deterministic.annot"
+    },
+    {
+      "file": "rh.cammoun500.annot",
+      "atlas": "cammoun500",
+      "sha256": "506722ce7eac2e076dcb2edc478a3725adc61299105ccd408761e966fc3e7a16",
+      "source_url": "https://files.osf.io/v1/resources/udpv8/providers/osfstorage/67326ef5c41abfb7cd0ddf1d",
+      "source_archive_sha256": "cfd79ae65abe7cb4c7345a1b895acb02769ff176c7ba2f64962c8e7d03d2f33d",
+      "source_member": "fsaverage/atl-Cammoun2012_space-fsaverage_res-500_hemi-R_deterministic.annot"
     }
   ]
 }

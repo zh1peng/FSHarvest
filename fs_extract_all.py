@@ -35,7 +35,7 @@ from typing import Any, Iterable, Iterator, Optional
 from urllib.parse import quote
 
 
-TOOL_VERSION = "1.0.4"
+TOOL_VERSION = "1.0.5"
 CACHE_SCHEMA_VERSION = 1
 OUTPUT_SCHEMA_VERSION = 1
 TOOL_NAME = "FSHarvest"
@@ -253,6 +253,31 @@ ATLAS_SPECS = {
         "{hemi}.vosdewael-300_mics.annot",
         ("1",),
     ),
+    "cammoun33": AtlasSpec(
+        "cammoun33", "Cammoun2012 scale033 (68 cortical regions)", 68,
+        "external", "cammoun33", "fsaverage", "{hemi}.cammoun33.annot",
+        ("unknown", "corpuscallosum"),
+    ),
+    "cammoun60": AtlasSpec(
+        "cammoun60", "Cammoun2012 scale060 (114 cortical regions)", 114,
+        "external", "cammoun60", "fsaverage", "{hemi}.cammoun60.annot",
+        ("unknown", "corpuscallosum"),
+    ),
+    "cammoun125": AtlasSpec(
+        "cammoun125", "Cammoun2012 scale125 (219 cortical regions)", 219,
+        "external", "cammoun125", "fsaverage", "{hemi}.cammoun125.annot",
+        ("unknown", "corpuscallosum"),
+    ),
+    "cammoun250": AtlasSpec(
+        "cammoun250", "Cammoun2012 scale250 (448 cortical regions)", 448,
+        "external", "cammoun250", "fsaverage", "{hemi}.cammoun250.annot",
+        ("unknown", "corpuscallosum"),
+    ),
+    "cammoun500": AtlasSpec(
+        "cammoun500", "Cammoun2012 scale500 (1000 cortical regions)", 1000,
+        "external", "cammoun500", "fsaverage", "{hemi}.cammoun500.annot",
+        ("unknown", "corpuscallosum"),
+    ),
 }
 DEFAULT_ATLASES = ("dk68",)
 EXPECTED_HEMISPHERE_ROWS = {
@@ -272,6 +297,11 @@ EXPECTED_HEMISPHERE_ROWS = {
     "glasser360": {"lh": 180, "rh": 180},
     "economo": {"lh": 43, "rh": 43},
     "vosdewael300": {"lh": 150, "rh": 150},
+    "cammoun33": {"lh": 34, "rh": 34},
+    "cammoun60": {"lh": 57, "rh": 57},
+    "cammoun125": {"lh": 111, "rh": 108},
+    "cammoun250": {"lh": 225, "rh": 223},
+    "cammoun500": {"lh": 499, "rh": 501},
 }
 
 

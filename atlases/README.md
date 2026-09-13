@@ -52,3 +52,36 @@ micapipe projects these annotations from `fsaverage5` to the native subject surf
 ## Built-in FreeSurfer atlases are not bundled or rebuilt
 
 `dk68` (`aparc`) and `destrieux` (`aparc.a2009s`) are outputs of the subject's existing `recon-all`. FSHarvest reads their existing `stats/{lh,rh}.*.stats` files directly. Their `label/{lh,rh}.*.annot` files are read only when rendering QC. Neither path calls `mri_surf2surf` or `mris_anatomical_stats`, and neither creates an annotation under `OUTPUT/per_subject/`.
+
+## Cammoun2012
+
+- Pipeline names: `cammoun33`, `cammoun60`, `cammoun125`, `cammoun250`, `cammoun500`.
+- Scientific atlas: Cammoun et al. (2012), *Mapping the human connectome at multiple scales with diffusion spectrum MRI*, <https://doi.org/10.1016/j.jneumeth.2011.09.031>.
+- Distribution: netneurotools `fetch_cammoun2012(version="fsaverage")`, <https://netneurotools.readthedocs.io/en/latest/generated/netneurotools.datasets.fetch_cammoun2012.html>.
+- Pinned dataset registry: <https://github.com/netneurolab/netneurotools/blob/49f83c023022ab606581cb10aec6a6282a306c48/netneurotools/datasets/datasets.json>.
+- Archive: <https://files.osf.io/v1/resources/udpv8/providers/osfstorage/67326ef5c41abfb7cd0ddf1d>.
+- Upstream archive MD5: `a67cad69c51749240d4b1b0100f429f5`; SHA-256: `cfd79ae65abe7cb4c7345a1b895acb02769ff176c7ba2f64962c8e7d03d2f33d`.
+- Source template: full-resolution FreeSurfer `fsaverage`, 163842 vertices per hemisphere; netneurotools describes the surface space as FreeSurfer 6.0.1.
+- Source members: `fsaverage/atl-Cammoun2012_space-fsaverage_res-{033,060,125,250,500}_hemi-{L,R}_deterministic.annot`.
+- Local filenames: `{lh,rh}.cammoun{33,60,125,250,500}.annot`; bytes are unchanged from the source archive.
+- License: `LICENSE_CAMMOUN.txt`, copied verbatim from <https://github.com/LTS5/cmp/blob/93094ce227bda9064512290dd505a7ba75cf7072/COPYRIGHT>. This includes BSD-style redistribution conditions and research-only/non-clinical use restrictions.
+
+| CLI name | Upstream scale | Left cortex | Right cortex | Total cortex |
+| --- | --- | ---: | ---: | ---: |
+| `cammoun33` | `scale033` | 34 | 34 | 68 |
+| `cammoun60` | `scale060` | 57 | 57 | 114 |
+| `cammoun125` | `scale125` | 111 | 108 | 219 |
+| `cammoun250` | `scale250` | 225 | 223 | 448 |
+| `cammoun500` | `scale500` | 499 | 501 | 1000 |
+
+Counts are verified from the bundled annotations after excluding `unknown` and `corpuscallosum`;
+all retained labels have assigned source vertices. Scale identifiers are not parcel counts.
+Only cortical surface annotations are bundled, not volumetric or subcortical Lausanne variants.
+Cammoun is an anatomical subdivision, not a functional-connectivity parcellation.
+
+The `cammoun33` cortical name set matches DK68, but its template projection is not equivalent
+to reading native subject `aparc.stats`. All five scales use the existing `mri_surf2surf`
+and `mris_anatomical_stats` pipeline, with hemisphere-specific count and region-name validation.
+The download script checks the archive before extracting named members and then verifies
+individual annotation SHA-256 values before installing the staged bundle. No netneurotools
+runtime dependency is required.

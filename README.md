@@ -16,7 +16,7 @@ FSHarvest is a standalone Linux command-line tool. It takes one directory contai
 
 - subject ID, folder ID, absolute subject path, reconstruction FreeSurfer version/build stamp, and `recon-all.done` status;
 - all nine cortical columns (`NumVert`, `SurfArea`, `GrayVol`, `ThickAvg`, `ThickStd`, `MeanCurv`, `GausCurv`, `FoldInd`, `CurvInd`);
-- Desikan-Killiany/DK68 (`aparc`, default), plus optional Destrieux, DK308/NSPN500, Schaefer 100–1000 (100-parcel increments), Glasser360, von Economo-Koskinas, and Vos de Wael 300 atlases;
+- Desikan-Killiany/DK68 (`aparc`, default), plus optional Destrieux, DK308/NSPN500, Schaefer 100–1000 (100-parcel increments), Glasser360, von Economo-Koskinas, Vos de Wael 300, and Cammoun2012 scales 33/60/125/250/500;
 - every structure row in `aseg.stats`, rather than a short hard-coded subcortical list;
 - every global `# Measure` record in `aseg.stats`, including eTIV;
 - left/right surface holes, left/right Euler number, and their sum.
@@ -27,7 +27,7 @@ Input FreeSurfer folders are read-only by default. Subject-specific external ann
 
 Requirements: Linux, Python 3.9+, a licensed FreeSurfer installation, and `curl` only if re-downloading atlases. Core extraction has no Python package dependencies. QC PNG rendering additionally needs NumPy, Nibabel, Matplotlib, and Pillow (`python3 -m pip install -r requirements-qc.txt`).
 
-FSHarvest 1.0.4 adds automatic run logs and has passed 78 automated tests, Ruff, mypy, and the documentation build. Post-release runs on linux212 verified the first 10 FreeSurfer 7.2.0 reconstructions with a FreeSurfer 7.4.1 runtime: DK68 extraction, cache reuse, the downloadable shell example, and fresh extraction of six atlases including DK308 all returned 10/10 OK. See the [commands, logs and output examples](https://zh1peng.github.io/FSHarvest/tutorials/ten-subject-example). No reconstruction or QC was run for these new examples; 1.0.0 included real-data QC verification. Version 1.0.2 aggregation was verified using temporary copies of saved outputs from 554 subjects. Validate other FreeSurfer releases on representative subjects before study-wide use.
+FSHarvest 1.0.5 adds five Cammoun2012 scales and documents the anatomical, functional, or multimodal basis of each atlas. It has passed 80 automated tests, Ruff, mypy, and the documentation build. Cammoun tests use real bundled labels with simulated FreeSurfer commands; real-subject Cammoun projection has not yet been validated. The 1.0.4 post-release runs on linux212 verified the first 10 FreeSurfer 7.2.0 reconstructions with a FreeSurfer 7.4.1 runtime: DK68 extraction, cache reuse, the downloadable shell example, and fresh extraction of six atlases including DK308 all returned 10/10 OK. See the [commands, logs and output examples](https://zh1peng.github.io/FSHarvest/tutorials/ten-subject-example). No reconstruction or QC was run for these new examples; 1.0.0 included real-data QC verification. Version 1.0.2 aggregation was verified using temporary copies of saved outputs from 554 subjects. Validate other FreeSurfer releases on representative subjects before study-wide use.
 
 ```bash
 cd /path/to/FSHarvest
@@ -195,6 +195,19 @@ Schaefer 100/200/300/400/500/600/700/800/900/1000 use Yeo 7-network names. All t
 
 `glasser360`, `economo`, and `vosdewael300` are also pinned micapipe `fsaverage5` annotations. Glasser360 is the 360-area HCP-MMP1.0 multimodal atlas; Economo is the 86-region MRI implementation of the von Economo-Koskinas cytoarchitectonic atlas; Vos de Wael 300 is an anatomical 300-region subdivision constrained by Desikan-Killiany boundaries and is not an alias for Schaefer300 or DK308.
 
+Cammoun2012 provides five anatomical scales based on Desikan-Killiany. The CLI names
+`cammoun33`, `cammoun60`, `cammoun125`, `cammoun250`, and `cammoun500` refer to upstream
+`scale033/060/125/250/500`, not the actual number of parcels. The bundled netneurotools
+`fsaverage` annotations contain **68, 114, 219, 448, and 1000 cortical regions**, respectively
+(left/right: 34/34, 57/57, 111/108, 225/223, 499/501), excluding `unknown` and `corpuscallosum`.
+`cammoun33` has the DK68 region-name set, but projects template annotations to the subject;
+it is not an alias for the native `recon-all` output read by `dk68`. Subcortical Cammoun
+parcellations are not included. See [provenance and license](atlases/README.md#cammoun2012).
+
+```bash
+fsharvest INPUT OUTPUT --atlases cammoun33 cammoun60 cammoun125 cammoun250 cammoun500 --jobs 12
+```
+
 ### How cortical statistics are generated
 
 There are two deliberately separate extraction paths.
@@ -342,7 +355,7 @@ The package outputs `lh_euler`, `rh_euler`, and `euler_sum`. More negative value
 
 - Do not mix FreeSurfer reconstruction versions without recording and modeling version effects. `fs_version` describes the reconstruction; `run_metadata.json` separately records the FreeSurfer executable used for extraction.
 - The external stats command deliberately follows the standard FreeSurfer `-th3 -mgz -cortex ... white` form used by FreeSurfer 7.x outputs.
-- External annotations use FreeSurfer's default `mri_surf2surf` mapping method from their declared source template. Schaefer, Glasser, Economo, and Vos de Wael use micapipe's `fsaverage5` files; DK308 uses `fsaverage`.
+- External annotations use FreeSurfer's default `mri_surf2surf` mapping method from their declared source template. Schaefer, Glasser, Economo, and Vos de Wael use micapipe's `fsaverage5` files; DK308 and Cammoun use `fsaverage`.
 - `run_metadata.json` records the run ID, input/output roots, atlas and source-file SHA-256 values, pinned region-set hashes, runtime/template fingerprints, options, and timestamps. Per-subject cache fingerprints use file size and nanosecond modification time for large FreeSurfer inputs and SHA-256 for bundled atlas assets. Cached TSV files are independently protected by SHA-256 and semantic revalidation.
 - Inspect surface reconstruction quality before interpreting any atlas. Automated ROI counts do not replace visual QC.
 - When joining subject-level regional tables, use `folder_id`, atlas, hemisphere, and the `region` field together, and verify that this compound key is unique in both tables. Use atlas, hemisphere, and region alone only for a region-description table with no subject dimension. Never assume row order is stable across unrelated atlases.

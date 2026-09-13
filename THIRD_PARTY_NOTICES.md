@@ -16,3 +16,11 @@ FSHarvest source code is licensed under the MIT License in `LICENSE`. Bundled at
 
 Scientific citations, exact source URLs, checksums, and atlas-specific notes are listed in `atlases/README.md` and `atlases/manifest.json`. Users remain responsible for following the original atlas authors' citation and usage terms.
 
+
+## Cammoun2012 annotations
+
+- Files: `atlases/{lh,rh}.cammoun{33,60,125,250,500}.annot`.
+- Distribution: netneurotools / OSF, pinned full-resolution `fsaverage` archive; source members and hashes are recorded in `atlases/manifest.json`.
+- Copyright: EPFL and UNIL-CHUV, Switzerland.
+- Terms: BSD-style redistribution conditions with research-only/non-clinical restrictions; see the complete upstream notice in `atlases/LICENSE_CAMMOUN.txt`.
+- Scientific citation: Cammoun et al. (2012), <https://doi.org/10.1016/j.jneumeth.2011.09.031>.

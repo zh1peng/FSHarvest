@@ -1,6 +1,14 @@
 # Validation report — FSHarvest
 
-Date: 2026-09-09
+Date: 2026-09-13
+
+## 1.0.5 verification
+
+- 80 automated tests pass, including assigned-label and full-resolution geometry checks for all ten Cammoun annotations.
+- A simulated FreeSurfer integration test covers all five Cammoun scales: 1849 cortical rows, exclusions, hemisphere-specific counts, wide tables, export, and cache reuse.
+- All 38 bundled external annotation files pass SHA-256 checks; Cammoun archive extraction was verified and a corrupted archive was rejected before extraction.
+- Ruff, mypy, Bash syntax checks, and the bilingual VitePress documentation build pass.
+- Real-subject Cammoun projection and QC have not yet been validated; the earlier real-data checks below apply to the versions and atlases stated there.
 
 ## 1.0.4 verification
 

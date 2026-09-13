@@ -140,7 +140,7 @@ class ExtractionUnitTests(unittest.TestCase):
     def test_bundled_external_atlases_match_manifest(self):
         atlas_dir = MODULE_PATH.parent / "atlases"
         checksums = MODULE.validate_atlas_files(atlas_dir, selected_atlases(tuple(MODULE.ATLAS_SPECS)))
-        self.assertEqual(len(checksums), 28)
+        self.assertEqual(len(checksums), 38)
 
     def test_external_atlas_region_schema_matches_annotations(self):
         try:

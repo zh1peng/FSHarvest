@@ -63,15 +63,34 @@ curl --fail --location --retry 3 \
   "${MICAPIPE_BASE}/LICENSE" \
   --output "${STAGING_DIR}/LICENSE_MICAPIPE_GPL3.txt"
 
+# netneurotools Cammoun2012 full-resolution fsaverage archive (fixed OSF file).
+curl --fail --location --retry 3 \
+  "https://files.osf.io/v1/resources/udpv8/providers/osfstorage/67326ef5c41abfb7cd0ddf1d" \
+  --output "${STAGING_DIR}/cammoun-fsaverage.tar.gz"
+curl --fail --location --retry 3 \
+  "https://raw.githubusercontent.com/LTS5/cmp/93094ce227bda9064512290dd505a7ba75cf7072/COPYRIGHT" \
+  --output "${STAGING_DIR}/LICENSE_CAMMOUN.txt"
+
 python3 - "${STAGING_DIR}" <<'PY'
 import hashlib
 import json
 import sys
+import tarfile
 from pathlib import Path
 
 root = Path(sys.argv[1])
 manifest_path = root / "manifest.json"
 manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+cammoun_files = [item for item in manifest["files"] if item["atlas"].startswith("cammoun")]
+archive = root / "cammoun-fsaverage.tar.gz"
+archive_sha256 = hashlib.sha256(archive.read_bytes()).hexdigest()
+if any(item["source_archive_sha256"] != archive_sha256 for item in cammoun_files):
+    raise SystemExit("Cammoun archive checksum mismatch")
+with tarfile.open(archive) as bundle:
+    for item in cammoun_files:
+        with bundle.extractfile(item["source_member"]) as source:
+            (root / item["file"]).write_bytes(source.read())
+archive.unlink()
 expected = {item["file"]: item["sha256"] for item in manifest["files"]}
 failed = []
 for name, digest in expected.items():

@@ -2,6 +2,11 @@
 
 All notable changes to FSHarvest are recorded here. The project follows semantic versioning once a release is tagged.
 
+## 1.0.5 - 2026-09-13
+
+- Add Cammoun2012 scales 33/60/125/250/500 with pinned fsaverage annotations, per-hemisphere region validation, reproducible downloads, and provenance/license documentation.
+- Organize bilingual atlas tables by anatomical/structural, functional-connectivity, and multimodal basis, with scientific references.
+
 ## 1.0.4 - 2026-09-09
 
 - Save complete CLI output and errors to a unique run log automatically, including launcher setup and exit status; user scripts no longer need `tee`.

@@ -7,6 +7,8 @@ Given input and output directories, it extracts cortical, subcortical, and globa
 and records FreeSurfer versions and run parameters. Results are saved as long and wide tables for statistical analysis;
 quality-control (QC) images can be generated on request.
 
+**Version 1.0.5** adds five Cammoun2012 scales. See [atlases grouped by anatomical, functional, and multimodal basis](./guide/atlases).
+
 ## Processing workflow
 
 <div class="harvest-path">

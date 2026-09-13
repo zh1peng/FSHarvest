@@ -181,6 +181,26 @@
     "vosdewael300": {
       "lh": "5ac0350aac1a6de817a93108e93b71e4af2480ea04eab61d9710907e1c5fe307",
       "rh": "5ac0350aac1a6de817a93108e93b71e4af2480ea04eab61d9710907e1c5fe307"
+    },
+    "cammoun33": {
+      "lh": "9dc480a8885f55278246ac5a2ed5bae71b185e65e03a502e67854960b7b70235",
+      "rh": "9dc480a8885f55278246ac5a2ed5bae71b185e65e03a502e67854960b7b70235"
+    },
+    "cammoun60": {
+      "lh": "270e1a1eb39fd0dd4b3d15bcbd92ec0a79da76c60132cbd5c70e79564140f94f",
+      "rh": "44ab071fc1d3051d4943ede8cc1f73016ae0149e2094278b4edaf4cb55a28d85"
+    },
+    "cammoun125": {
+      "lh": "88a8d5ee093f6390bf50cda03f906a19dcc799c7900388284474e2c70837112d",
+      "rh": "0f465af45a584e4acb4bfb6bbfb06b7e0396ea81b50de706cbb38f71f0421c6a"
+    },
+    "cammoun250": {
+      "lh": "267387292f47a97294c14b65f2b9a6d50b98967a87151a94166e2fd72df84fb7",
+      "rh": "a8563f06b0d6d059fd1fc0a4af638abbc3a5d686c0e9ecc9cad8fc51658e51d4"
+    },
+    "cammoun500": {
+      "lh": "87ff081deb277237b4b73ef12fabf513c957180d2ea4dd864675b348713d9c52",
+      "rh": "c5c9a11c84b49859039740605026387d53a968d830a1b223556c5ea4d277e297"
     }
   }
 }
